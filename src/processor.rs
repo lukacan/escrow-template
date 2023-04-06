@@ -2,11 +2,12 @@ use solana_program::{
     account_info::AccountInfo,
     entrypoint::ProgramResult,
     pubkey::Pubkey,
+    msg
 };
 
 
 use crate::{error::JanecekError, 
-    instruction::JanecekMethodInstructions};
+    instruction::JanecekMethodInstruction};
 use crate::identifier::ID;
 
 
@@ -47,23 +48,56 @@ impl Processor {
         accounts: &[AccountInfo],
         data: &[u8],
     ) -> ProgramResult {
-        let (tag, rest) = data.split_first().ok_or(JanecekError::InvalidInstruction)?;
-        let mut ix_data: &[u8] = data;
-        match tag {
-            0 => {
-                JanecekMethodInstructions::create_party()
+        let instruction = JanecekMethodInstruction::unpack(data)?;
+        match instruction {
+            JanecekMethodInstruction::CreateParty { name } => {
+                msg!("Instruction: CreateParty");
+                Self::process_create_party(accounts, name, program_id)
             }
-            1 => {
-                JanecekMethodInstructions::create_voter()
+            JanecekMethodInstruction::CreateVoter { } => {
+                msg!("Instruction: CreateVoter");
+                Self::process_create_voter(accounts, program_id)
             }
-            2 => {
-                JanecekMethodInstructions::vote_positive()
+            JanecekMethodInstruction::VotePositive { party_name } => {
+                msg!("Instruction: VotePositive");
+                Self::process_create_party(accounts, party_name, program_id)
             }
-            3 => {
-                JanecekMethodInstructions::vote_negative()
+            JanecekMethodInstruction::VoteNegative { party_name } => {
+                msg!("Instruction: InitEscrow");
+                Self::process_create_party(accounts, party_name, program_id)
             }
-            _ => Err(JanecekError::InstructionFallbackNotFound.into()),
         }
+    }
+
+    fn process_create_party(
+        accounts: &[AccountInfo],
+        name: String, 
+        program_id: &Pubkey
+    )->ProgramResult {
+        Ok(())
+    }
+
+    fn process_create_voter(
+        accounts: &[AccountInfo],
+        program_id: &Pubkey
+    )->ProgramResult {
+        Ok(())
+    }
+
+    fn process_vote_positive(
+        accounts: &[AccountInfo],
+        name: String, 
+        program_id: &Pubkey
+    )->ProgramResult {
+        Ok(())
+    }
+
+    fn process_vote_negative(
+        accounts: &[AccountInfo],
+        name: String, 
+        program_id: &Pubkey
+    )->ProgramResult {
+        Ok(())
     }
 }
 
