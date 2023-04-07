@@ -98,8 +98,15 @@ impl Processor {
             JanecekError::InstructionDidNotDeserialize
         })?;
 
+        msg!("Instruction data Deserialized");
         let instruction::CreateParty { name } = ix;
 
+        let mut bumps = std::collections::BTreeMap::<String,u8>::new();
+
+        let mut remaining_accounts: &[AccountInfo] = accounts;
+
+
+        //here we will call create_party which will work with context
 
         Ok(())
     }
