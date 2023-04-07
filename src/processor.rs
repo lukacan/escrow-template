@@ -1,13 +1,21 @@
+use borsh::BorshDeserialize;
+use solana_program::account_info::next_account_info;
+
+
+
 use solana_program::{
     account_info::AccountInfo,
     entrypoint::ProgramResult,
     pubkey::Pubkey,
-    msg
+    msg,
+    program_error::ProgramError,
+    program_pack::{Pack, IsInitialized}
 };
 
 
+
 use crate::{error::JanecekError, 
-    instruction::JanecekMethodInstruction};
+    instruction::instruction};
 use crate::identifier::ID;
 
 
@@ -48,134 +56,75 @@ impl Processor {
         accounts: &[AccountInfo],
         data: &[u8],
     ) -> ProgramResult {
-        let instruction = JanecekMethodInstruction::unpack(data)?;
-        match instruction {
-            JanecekMethodInstruction::CreateParty { name } => {
+        let mut ix_data: &[u8] = data;
+
+        let sighash: [u8; 1] = {
+            let mut sighash: [u8; 1] = [0; 1];
+            sighash.copy_from_slice(&ix_data[..1]);
+            ix_data = &ix_data[1..];
+            sighash
+        };
+
+        match sighash {
+            [0] => {
                 msg!("Instruction: CreateParty");
-                Self::process_create_party(accounts, name, program_id)
+                Self::process_create_party(program_id, accounts, ix_data)
             }
-            JanecekMethodInstruction::CreateVoter { } => {
+            [1] => {
                 msg!("Instruction: CreateVoter");
-                Self::process_create_voter(accounts, program_id)
+                Self::process_create_voter(program_id, accounts, ix_data)
             }
-            JanecekMethodInstruction::VotePositive { party_name } => {
+            [2] => {
                 msg!("Instruction: VotePositive");
-                Self::process_create_party(accounts, party_name, program_id)
+                Self::process_create_party(program_id, accounts, ix_data)
             }
-            JanecekMethodInstruction::VoteNegative { party_name } => {
-                msg!("Instruction: InitEscrow");
-                Self::process_create_party(accounts, party_name, program_id)
+            [3] => {
+                msg!("Instruction: VoteNegative");
+                Self::process_create_party(program_id, accounts, ix_data)
             }
+            _ => Err(JanecekError::InstructionFallbackNotFound.into()),
         }
     }
 
     fn process_create_party(
+        program_id: &Pubkey,
         accounts: &[AccountInfo],
-        name: String, 
-        program_id: &Pubkey
+        ix_data: &[u8],
     )->ProgramResult {
+        let ix = instruction::CreateParty::deserialize(
+            &mut &ix_data[..]
+        )
+        .map_err(|_| {
+            JanecekError::InstructionDidNotDeserialize
+        })?;
+
+        let instruction::CreateParty { name } = ix;
+
+
         Ok(())
     }
 
     fn process_create_voter(
+        program_id: &Pubkey,
         accounts: &[AccountInfo],
-        program_id: &Pubkey
+        ix_data: &[u8],
     )->ProgramResult {
         Ok(())
     }
 
     fn process_vote_positive(
+        program_id: &Pubkey,
         accounts: &[AccountInfo],
-        name: String, 
-        program_id: &Pubkey
+        ix_data: &[u8],
     )->ProgramResult {
         Ok(())
     }
 
     fn process_vote_negative(
+        program_id: &Pubkey,
         accounts: &[AccountInfo],
-        name: String, 
-        program_id: &Pubkey
+        ix_data: &[u8],
     )->ProgramResult {
         Ok(())
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//     fn process_init_escrow(
-//         accounts: &[AccountInfo],
-//         amount: u64,
-//         program_id: &Pubkey,
-//     ) -> ProgramResult {
-//         let account_info_iter = &mut accounts.iter();
-//         let initializer = next_account_info(account_info_iter)?;
-
-//         if !initializer.is_signer {
-//             return Err(ProgramError::MissingRequiredSignature);
-//         }
-
-//         let temp_token_account = next_account_info(account_info_iter)?;
-
-//         let token_to_receive_account = next_account_info(account_info_iter)?;
-//         if *token_to_receive_account.owner != spl_token::id() {
-//             return Err(ProgramError::IncorrectProgramId);
-//         }
-
-//         let escrow_account = next_account_info(account_info_iter)?;
-//         let rent = &Rent::from_account_info(next_account_info(account_info_iter)?)?;
-
-//         if !rent.is_exempt(escrow_account.lamports(), escrow_account.data_len()) {
-//             return Err(EscrowError::NotRentExempt.into());
-//         }
-
-//         let mut escrow_info = Escrow::unpack_unchecked(&escrow_account.try_borrow_data()?)?;
-//         if escrow_info.is_initialized() {
-//             return Err(ProgramError::AccountAlreadyInitialized);
-//         }
-
-//         escrow_info.is_initialized = true;
-//         escrow_info.initializer_pubkey = *initializer.key;
-//         escrow_info.temp_token_account_pubkey = *temp_token_account.key;
-//         escrow_info.initializer_token_to_receive_account_pubkey = *token_to_receive_account.key;
-//         escrow_info.expected_amount = amount;
-
-//         Escrow::pack(escrow_info, &mut escrow_account.try_borrow_mut_data()?)?;
-//         let (pda, _bump_seed) = Pubkey::find_program_address(&[b"escrow"], program_id);
-
-//         let token_program = next_account_info(account_info_iter)?;
-//         let owner_change_ix = spl_token::instruction::set_authority(
-//             token_program.key,
-//             temp_token_account.key,
-//             Some(&pda),
-//             spl_token::instruction::AuthorityType::AccountOwner,
-//             initializer.key,
-//             &[&initializer.key],
-//         )?;
-
-//         msg!("Calling the token program to transfer token account ownership...");
-//         invoke(
-//             &owner_change_ix,
-//             &[
-//                 temp_token_account.clone(),
-//                 initializer.clone(),
-//                 token_program.clone(),
-//             ],
-//         )?;
-
-//         Ok(())
-//     }
-// }

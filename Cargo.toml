@@ -11,6 +11,7 @@ thiserror = "1.0.24"
 spl-token = {version = "3.2.0", features = ["no-entrypoint"]}
 arrayref = "0.3.6"
 borsh = "0.10.3"
+serde="*"
 
 [features]
 test-bpf = []
