@@ -1,3 +1,5 @@
+use std::result;
+
 use borsh::BorshDeserialize;
 use solana_program::account_info::next_account_info;
 
@@ -12,6 +14,9 @@ use solana_program::{
     program_pack::{Pack, IsInitialized}
 };
 
+
+
+use crate::state::state::CreateParty;
 
 
 use crate::{error::JanecekError, 
@@ -107,6 +112,15 @@ impl Processor {
 
 
         //here we will call create_party which will work with context
+
+        let result = CreateParty::try_accounts(
+            program_id,
+            &mut remaining_accounts,
+            ix_data,
+            &mut bumps,
+        );
+
+        msg!("Try accounts finished");
 
         Ok(())
     }

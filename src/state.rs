@@ -52,7 +52,7 @@ pub mod state {
     }
     impl<'info> CreateParty<'info>
     {
-        fn try_accounts(
+        pub fn try_accounts(
             program_id: &Pubkey,
             accounts: & mut &[AccountInfo<'info>],
             ix_data: &[u8],
@@ -63,12 +63,12 @@ pub mod state {
 
             /// create struct for instruction data
             #[derive(BorshDeserialize,BorshSerialize)]
-            struct args {
+            struct Args {
                 name: String,
             }
 
             // deserialized instruction data
-            let args {name} = args::deserialize(&mut ix_data).map_err(|_| {
+            let Args {name} = Args::deserialize(&mut ix_data).map_err(|_| {
                 JanecekError::InstructionDidNotDeserialize
             })?;
 
