@@ -5,6 +5,7 @@ pub mod instruction {
     #[derive(Debug,BorshDeserialize,BorshSerialize)]
     pub struct CreateParty {
         pub name: String,
+        pub bump:u8,
     }
 
     #[derive(Debug,BorshSerialize,BorshDeserialize)]

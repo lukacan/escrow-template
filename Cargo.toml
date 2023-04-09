@@ -7,21 +7,21 @@ publish = false
 
 [dependencies]
 solana-program = "=1.15.2"
-thiserror = "1.0.24"
-spl-token = {version = "3.2.0", features = ["no-entrypoint"]}
-arrayref = "0.3.6"
-borsh = "0.10.3"
+thiserror = "*"
+spl-token = {version = "*", features = ["no-entrypoint"]}
+arrayref = "*"
+borsh = "*"
 serde="*"
 
 [features]
 test-bpf = []
 
 [dev-dependencies]
-assert_matches = "1.4.0"
-solana-logger = "=1.15.2"
-solana-program-test = "=1.15.2"
-solana-sdk = "=1.15.2"
-solana-validator = "=1.15.2"
+assert_matches = "*"
+solana-logger = "*"
+solana-program-test = "*"
+solana-sdk = "*"
+solana-validator = "*"
 
 [lib]
 crate-type = ["cdylib", "lib"]
