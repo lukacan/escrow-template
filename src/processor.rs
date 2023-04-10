@@ -90,7 +90,11 @@ impl Processor {
             bump} = ix;
 
         let accounts_iter = &mut accounts.iter();
-        
+
+        let system_program = next_account_info(accounts_iter)?;
+        msg!("System program Loaded");
+
+
         let author = next_account_info(accounts_iter)?;
         msg!("Author Loaded");
 
@@ -147,6 +151,7 @@ impl Processor {
             program::invoke_signed(
                 &instr,
                 &[
+                    system_program.clone(),
                     author.clone(), 
                     party.clone()],
                 &[

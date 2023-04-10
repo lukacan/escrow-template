@@ -55,6 +55,7 @@ fn test_validator_transaction() {
         &[Instruction {
             program_id,
             accounts: vec![
+                AccountMeta::new_readonly(solana_program::system_program::id(),false),
                 AccountMeta::new(payer.pubkey(), true),
                 AccountMeta::new(pda,false)],
             data: instruction_data,
