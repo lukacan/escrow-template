@@ -8,8 +8,6 @@ pub enum JanecekError {
     /// Invalid instruction
     #[error("Invalid Instruction")]
     InvalidInstruction,
-    #[error("Not rent exempt")]
-    NotRentExempt,
     #[error("Program ID Mismatch")]
     ProgramIDMismatch,
     #[error("Instruction Missmatch")]
@@ -32,6 +30,8 @@ pub enum JanecekError {
     ConstraintMut,
     #[error("Rent Exempt")]
     ConstraintRentExempt,
+    #[error("Account is already initialized")]
+    AccountAlreadyInitialized,
 
 }
 

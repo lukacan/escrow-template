@@ -2,9 +2,6 @@
 
 use std::str::FromStr;
 
-
-
-
 use {
     assert_matches::*,
     solana_program::{
@@ -15,15 +12,12 @@ use {
     solana_validator::test_validator::*,
 };
 
-
 #[test]
 fn test_validator_transaction() {
     solana_logger::setup_with_default("solana_program_runtime=debug");
-    //let program_id = Pubkey::new_unique();
 
     let program_id = Pubkey::from_str("Fnambs3f1XXoMmAVc94bf8t6JDAxmVkXz85XU4v2edph").unwrap();
 
-    
     let (test_validator, payer) = TestValidatorGenesis::default()
         .add_program("target/deploy/bpf_program_template", program_id)
         .start();
@@ -31,11 +25,15 @@ fn test_validator_transaction() {
     solana_logger::setup_with_default("solana_runtime::message=debug");
     let rpc_client = test_validator.get_rpc_client();
 
+    let balance = rpc_client.get_account(&payer.pubkey()).unwrap().lamports;
+
+    println!("Sol balance of payer is {balance}");
+
     let blockhash = rpc_client.get_latest_blockhash().unwrap();
 
-    let (pda,bump) = Pubkey::find_program_address(
-        &["Hello".as_bytes()], 
-        &program_id,);
+    let name: &str = "Hello";
+
+    let (pda, bump) = Pubkey::find_program_address(&[name.as_bytes()], &program_id);
 
     let mut instruction_data = Vec::<u8>::new();
     instruction_data.push(0u8);
@@ -44,10 +42,9 @@ fn test_validator_transaction() {
     instruction_data.push(0u8);
     instruction_data.push(0u8);
 
-    for byte in "Hello".as_bytes()
-    {
+    for byte in name.as_bytes() {
         instruction_data.push(*byte);
-    } 
+    }
 
     instruction_data.push(bump);
 
@@ -55,9 +52,10 @@ fn test_validator_transaction() {
         &[Instruction {
             program_id,
             accounts: vec![
-                AccountMeta::new_readonly(solana_program::system_program::id(),false),
                 AccountMeta::new(payer.pubkey(), true),
-                AccountMeta::new(pda,false)],
+                AccountMeta::new(pda, false),
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+            ],
             data: instruction_data,
         }],
         Some(&payer.pubkey()),

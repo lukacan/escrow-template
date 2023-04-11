@@ -4,13 +4,11 @@ use solana_program::{
     entrypoint, 
     entrypoint::ProgramResult, 
     pubkey::Pubkey,
-    msg
 };
 
 declare_id!("Fnambs3f1XXoMmAVc94bf8t6JDAxmVkXz85XU4v2edph");
 
 use crate::processor::Processor;
-use crate::identifier;
 
 entrypoint!(process_instruction);
 fn process_instruction(
@@ -18,7 +16,6 @@ fn process_instruction(
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
-    msg!("{}",program_id);
     Processor::entry(program_id, accounts, instruction_data)
 }
 

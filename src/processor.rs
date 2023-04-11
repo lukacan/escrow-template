@@ -1,9 +1,7 @@
-use std::result;
-
 use borsh::BorshDeserialize;
 use solana_program::account_info::next_account_info;
 
-use solana_program::{program, system_program};
+use solana_program::clock::Clock;
 use solana_program::rent::Rent;
 use solana_program::system_instruction;
 use solana_program::sysvar::Sysvar;
@@ -11,10 +9,10 @@ use solana_program::{
     account_info::AccountInfo,
     entrypoint::ProgramResult,
     msg,
-    program_error::ProgramError,
     program_pack::{IsInitialized, Pack},
     pubkey::Pubkey,
 };
+use solana_program::{program};
 
 use crate::identifier::ID;
 use crate::state::state::Party;
@@ -84,82 +82,34 @@ impl Processor {
         let ix = instruction::CreateParty::deserialize(&mut &ix_data[..])
             .map_err(|_| JanecekError::InstructionDidNotDeserialize)?;
 
-        msg!("Instruction data Deserialized");
-        let instruction::CreateParty { 
-            name ,
-            bump} = ix;
+        let instruction::CreateParty { name, bump } = ix;
 
         let accounts_iter = &mut accounts.iter();
 
-        let system_program = next_account_info(accounts_iter)?;
-        msg!("System program Loaded");
-
-
         let author = next_account_info(accounts_iter)?;
-        msg!("Author Loaded");
-
-
-        if !author.is_signer {
-            return Err(JanecekError::AccountNotSigner.into());
-        }
 
         let party = next_account_info(accounts_iter)?;
-        msg!("Party Loaded");
 
-        assert!(author.is_writable);
-        assert!(author.is_signer);
-        assert!(party.is_writable);
-        assert_eq!(party.owner, &system_program::ID);
+        let system_program = next_account_info(accounts_iter)?;
 
-        //let system_program = next_account_info(accounts_iter)?;
-
-        //assert!(current_program.is_writable);
-
-        //assert!(system_program::check_id(system_program.key));
-
-        msg!("System Program Loaded");
-
-
-        let (pda_on, bump_on) = Pubkey::find_program_address(
-            &[name.as_bytes()], 
-            program_id);
-
-        assert_eq!(party.key, &pda_on);
-
-        msg!("PDA Address Created");
-        let current_lamports = party.lamports();
+        let (pda, _bump) = Pubkey::find_program_address(&[name.as_bytes()], program_id);
 
         let rent = Rent::get()?;
+        let current_lamports = party.lamports();
+        let lamports_needed = rent.minimum_balance(Party::LEN);
+
         if current_lamports == 0 {
-            let lamports_needed = rent.minimum_balance(Party::LEN);
-
-            let instr = system_instruction::create_account(
-                author.key,
-                party.key,
-                lamports_needed,
-                Party::LEN as u64,
-                program_id,
-            );
-
-            msg!("Invoking Signed");
-            msg!("Executing here");
-            msg!("{}",author.key);
-            msg!("{}",program_id);
-            msg!("{}",party.key);
-            msg!("{}",pda_on);
-
             program::invoke_signed(
-                &instr,
-                &[
-                    system_program.clone(),
-                    author.clone(), 
-                    party.clone()],
-                &[
-                    &[name.as_bytes(),&[bump],],
-                ],
-            
+                &system_instruction::create_account(
+                    author.key,
+                    party.key,
+                    lamports_needed,
+                    Party::LEN as u64,
+                    program_id,
+                ),
+                &[system_program.clone(), author.clone(), party.clone()],
+                &[&[name.as_bytes(), &[bump]]],
             )?;
-            msg!("Signed Done");
         } else {
             let required_lamports = rent
                 .minimum_balance(Party::LEN)
@@ -168,82 +118,104 @@ impl Processor {
 
             if required_lamports > 0 {
                 let instr = system_instruction::transfer(author.key, party.key, required_lamports);
-                
-                // ass payer as signer
+
                 program::invoke_signed(
                     &instr,
                     &[author.clone(), party.clone()],
                     &[&[name.as_bytes()], &[&[bump]]],
                 )?;
             }
-            let instr = system_instruction::allocate(party.key, Party::LEN as u64);
 
-            program::invoke_signed(&instr, &[party.clone()], &[&[name.as_bytes()], &[&[bump]]])?;
+            program::invoke_signed(
+                &system_instruction::allocate(party.key, Party::LEN as u64),
+                &[party.clone()],
+                &[&[name.as_bytes()], &[&[bump]]],
+            )?;
 
-            let instr = system_instruction::assign(party.key, program_id);
-
-            program::invoke_signed(&instr, &[party.clone()], &[&[name.as_bytes()], &[&[bump]]])?;
+            program::invoke_signed(
+                &system_instruction::assign(party.key, program_id),
+                &[party.clone()],
+                &[&[name.as_bytes()], &[&[bump]]],
+            )?;
         }
 
-        msg!("Here");
-
-
-        if pda_on != *party.key {
-
-        }
-        if !party.is_writable{
-
-        }
-        if rent.is_exempt(party.lamports(), party.try_data_len()?)
-        {
-
-        }
-        if !author.is_writable
-        {
-
+        if !author.is_signer {
+            return Err(JanecekError::AccountNotSigner.into());
         }
 
 
+        if !author.is_writable {}
 
-        let mut party_data = party.data.borrow_mut();
+        if !party.is_writable {}
 
-        let mut party_state = Party::unpack_unchecked(&party_data)?;
+        if pda != *party.key ||  _bump != bump{
+            return Err(JanecekError::PdaMismatch.into());
+        }
+        if !party.is_writable {
+            return Err(JanecekError::ConstraintMut.into());
 
+        }
+        if !author.is_writable {
+            return Err(JanecekError::ConstraintMut.into());
+        }
+        if !rent.is_exempt(party.lamports(), party.try_data_len()?) {
+            return Err(JanecekError::ConstraintRentExempt.into());
+
+        }
+        let mut party_state = Party::unpack_unchecked(&party.data.borrow_mut())?;
+        
         if party_state.is_initialized() {
-
-            //return Err(SampleError::AlreadyInitializedState.into());
+            return Err(JanecekError::AccountAlreadyInitialized.into());
         } else {
+            let clock: Clock = Clock::get().unwrap();
             party_state.is_initialized = true;
+            party_state.author = *author.key;
+            party_state.created = clock.unix_timestamp;
+            party_state.voting_ends = clock.unix_timestamp + (7 * 24 * 60 * 60);
+            party_state.name = name;
+            party_state.votes = 0;
+            party_state.bump = bump;
+
+            Party::pack(party_state,&mut &mut party.data.borrow_mut()[..])?;
+            msg!("Packed")
         }
 
-        //let system_program = next_account_info(accounts_iter)?;
+        let party_state = Party::unpack_unchecked(&party.data.borrow_mut())?;
+        msg!("{}",author.key);
+        msg!("{}",party_state.author);
+        msg!("{}",party_state.created);
+        msg!("{}",party_state.voting_ends);
+        msg!("{}",party_state.name);
+        msg!("{}",party_state.name.chars().count());
+        msg!("{}",party_state.votes);
+        msg!("{}",party_state.bump);
 
-
-        msg!("Try accounts finished");
 
         Ok(())
     }
 
+
+    #[allow(dead_code)]
     fn process_create_voter(
-        program_id: &Pubkey,
-        accounts: &[AccountInfo],
-        ix_data: &[u8],
+        _program_id: &Pubkey,
+        _accounts: &[AccountInfo],
+        _ix_data: &[u8],
     ) -> ProgramResult {
         Ok(())
     }
-
+    #[allow(dead_code)]
     fn process_vote_positive(
-        program_id: &Pubkey,
-        accounts: &[AccountInfo],
-        ix_data: &[u8],
+        _program_id: &Pubkey,
+        _accounts: &[AccountInfo],
+        _ix_data: &[u8],
     ) -> ProgramResult {
         Ok(())
     }
-
+    #[allow(dead_code)]
     fn process_vote_negative(
-        program_id: &Pubkey,
-        accounts: &[AccountInfo],
-        ix_data: &[u8],
+        _program_id: &Pubkey,
+        _accounts: &[AccountInfo],
+        _ix_data: &[u8],
     ) -> ProgramResult {
         Ok(())
     }
