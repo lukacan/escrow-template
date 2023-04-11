@@ -1,6 +1,7 @@
 //#![cfg(feature = "test-bpf")]
 
-use std::str::FromStr;
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::signature::Keypair;
 
 use {
     assert_matches::*,
@@ -12,45 +13,25 @@ use {
     solana_validator::test_validator::*,
 };
 
-#[test]
-fn test_validator_transaction() {
-    solana_logger::setup_with_default("solana_program_runtime=debug");
+pub const PROGRAM_ID: Pubkey =
+    solana_program::pubkey!("Fnambs3f1XXoMmAVc94bf8t6JDAxmVkXz85XU4v2edph");
 
-    let program_id = Pubkey::from_str("Fnambs3f1XXoMmAVc94bf8t6JDAxmVkXz85XU4v2edph").unwrap();
-
-    let (test_validator, payer) = TestValidatorGenesis::default()
-        .add_program("target/deploy/bpf_program_template", program_id)
-        .start();
-
-    solana_logger::setup_with_default("solana_runtime::message=debug");
-    let rpc_client = test_validator.get_rpc_client();
-
-    let balance = rpc_client.get_account(&payer.pubkey()).unwrap().lamports;
-
-    println!("Sol balance of payer is {balance}");
-
+fn create_party(rpc_client: &RpcClient, payer: &Keypair) {
     let blockhash = rpc_client.get_latest_blockhash().unwrap();
 
     let name: &str = "Hello";
 
-    let (pda, bump) = Pubkey::find_program_address(&[name.as_bytes()], &program_id);
+    let (pda, bump) = Pubkey::find_program_address(&[name.as_bytes()], &PROGRAM_ID);
 
-    let mut instruction_data = Vec::<u8>::new();
-    instruction_data.push(0u8);
-    instruction_data.push(5u8);
-    instruction_data.push(0u8);
-    instruction_data.push(0u8);
-    instruction_data.push(0u8);
-
+    let mut instruction_data = vec![0u8, name.chars().count() as u8, 0u8, 0u8, 0u8];
     for byte in name.as_bytes() {
         instruction_data.push(*byte);
     }
-
     instruction_data.push(bump);
 
     let mut transaction = Transaction::new_with_payer(
         &[Instruction {
-            program_id,
+            program_id: PROGRAM_ID,
             accounts: vec![
                 AccountMeta::new(payer.pubkey(), true),
                 AccountMeta::new(pda, false),
@@ -60,41 +41,50 @@ fn test_validator_transaction() {
         }],
         Some(&payer.pubkey()),
     );
-    transaction.sign(&[&payer], blockhash);
+    transaction.sign(&[payer], blockhash);
 
     assert_matches!(rpc_client.send_and_confirm_transaction(&transaction), Ok(_));
+}
 
+fn create_voter(rpc_client: &RpcClient, payer: &Keypair) {
+    let blockhash = rpc_client.get_latest_blockhash().unwrap();
 
+    let (pda, bump) =
+        Pubkey::find_program_address(&[b"new_voter", payer.pubkey().as_ref()], &PROGRAM_ID);
 
-    let mut instruction_data2 = Vec::<u8>::new();
-    instruction_data2.push(0u8);
-    instruction_data2.push(5u8);
-    instruction_data2.push(0u8);
-    instruction_data2.push(0u8);
-    instruction_data2.push(0u8);
+    let instruction_data = vec![1u8, bump];
 
-    for byte in name.as_bytes() {
-        instruction_data2.push(*byte);
-    }
-
-    instruction_data2.push(bump);
-
-    let blockhash2 = rpc_client.get_latest_blockhash().unwrap();
-
-
-    let mut transaction2 = Transaction::new_with_payer(
+    let mut transaction = Transaction::new_with_payer(
         &[Instruction {
-            program_id,
+            program_id: PROGRAM_ID,
             accounts: vec![
                 AccountMeta::new(payer.pubkey(), true),
                 AccountMeta::new(pda, false),
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
             ],
-            data: instruction_data2,
+            data: instruction_data,
         }],
         Some(&payer.pubkey()),
     );
-    transaction2.sign(&[&payer], blockhash2);
+    transaction.sign(&[payer], blockhash);
 
-    assert_matches!(rpc_client.send_and_confirm_transaction(&transaction2), Ok(_));
+    assert_matches!(rpc_client.send_and_confirm_transaction(&transaction), Ok(_));
+}
+#[test]
+fn test_validator_transaction() {
+    solana_logger::setup_with_default("solana_program_runtime=debug");
+
+    let (test_validator, payer) = TestValidatorGenesis::default()
+        .add_program("target/deploy/bpf_program_template", PROGRAM_ID)
+        .start();
+
+    solana_logger::setup_with_default("solana_runtime::message=debug");
+    let rpc_client = test_validator.get_rpc_client();
+
+    let balance = rpc_client.get_account(&payer.pubkey()).unwrap().lamports;
+
+    println!("Sol balance of payer is {balance}");
+
+    create_party(&rpc_client, &payer);
+    create_voter(&rpc_client, &payer);
 }

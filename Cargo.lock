@@ -636,6 +636,7 @@ dependencies = [
  "assert_matches",
  "borsh 0.10.3",
  "serde",
+ "solana-client",
  "solana-logger",
  "solana-program",
  "solana-program-test",

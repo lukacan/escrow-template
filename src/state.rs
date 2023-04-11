@@ -1,17 +1,12 @@
 use crate::error::JanecekError;
-use solana_program::{
-    program_error::ProgramError,
-    pubkey::Pubkey,
-};
+use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
 use arrayref::{array_mut_ref, array_ref, array_refs, mut_array_refs};
-
-
 
 pub mod state {
     const NAME_LENGTH: usize = 32;
 
-    use solana_program::{program_pack::{Sealed, Pack, IsInitialized}};
+    use solana_program::program_pack::{IsInitialized, Pack, Sealed};
 
     use super::*;
     #[derive(Debug)]
@@ -22,16 +17,7 @@ pub mod state {
         pub voting_ends: i64,
         pub name: String,
         pub votes: i64,
-        pub bump:u8,
-    }
-
-    pub struct Voter {
-        pub is_initialized: bool,
-        pub author: Pubkey,
-        pub num_votes: i8,
-        pub pos1: Pubkey,
-        pub pos2: Pubkey,
-        pub neg1: Pubkey,
+        pub bump: u8,
     }
 
     impl IsInitialized for Party {
@@ -40,21 +26,21 @@ pub mod state {
         }
     }
 
-    impl Sealed for Party{}
+    impl Sealed for Party {}
 
-    impl Pack for Party{
-        const LEN: usize = 1 // is_initialzed
-        + 32 // author
-        + 8 // created
-        + 8 // voting ends
-        + 4 // vector prefix
-        + NAME_LENGTH * 4 // number of bytes * size of char
-        + 8 // votes
+    impl Pack for Party {
+        const LEN: usize = 1    // is_initialzed
+        + 32                    // author
+        + 8                     // created
+        + 8                     // voting ends
+        + 4                     // vector prefix
+        + NAME_LENGTH * 4       // number of bytes * size of char
+        + 8                     // votes
         + 1; // bump
 
         fn pack_into_slice(&self, dst: &mut [u8]) {
             let dst = array_mut_ref![dst, 0, Party::LEN];
-            
+
             let (
                 is_initialized_dst,
                 author_dst,
@@ -64,8 +50,8 @@ pub mod state {
                 name_dst,
                 votes_dst,
                 bump_dst,
-            ) = mut_array_refs![dst, 1, 32, 8, 8, 4,4*NAME_LENGTH,8,1];
-    
+            ) = mut_array_refs![dst, 1, 32, 8, 8, 4, 4 * NAME_LENGTH, 8, 1];
+
             let Party {
                 is_initialized,
                 author,
@@ -86,31 +72,17 @@ pub mod state {
             name_dst[..name_len as usize].copy_from_slice(name.as_bytes());
             *votes_dst = votes.to_be_bytes();
             bump_dst[0] = *bump;
-
-
-
         }
         fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
             let src = array_ref![src, 0, Party::LEN];
-            let (
-                is_initialized,
-                author,
-                created,
-                voting_ends,
-                name_len,
-                name,
-                votes,
-                bump,
-            ) = array_refs![src, 1, 32, 8, 8, 4,4*NAME_LENGTH,8,1];
-
-
+            let (is_initialized, author, created, voting_ends, name_len, name, votes, bump) =
+                array_refs![src, 1, 32, 8, 8, 4, 4 * NAME_LENGTH, 8, 1];
 
             let name_len_ = u32::from_le_bytes(*name_len);
-            
-            if name_len_ > 32{
+
+            if name_len_ > 32 {
                 return Err(JanecekError::StringTooLong.into());
             }
-
 
             let is_initialized = match is_initialized {
                 [0] => false,
@@ -118,17 +90,13 @@ pub mod state {
                 _ => return Err(ProgramError::InvalidAccountData),
             };
 
+            let tmp_name = String::from_utf8(name[0..name_len_ as usize].to_vec());
 
-            let tmp_name = String::from_utf8(
-                name[0..name_len_ as usize].to_vec());
-
-            let name = match tmp_name{
+            let name = match tmp_name {
                 Ok(_) => tmp_name.unwrap(),
                 Err(_) => String::from(""),
-
-            }; 
+            };
             let bump = bump[0];
-    
 
             Ok(Party {
                 is_initialized,
@@ -136,8 +104,99 @@ pub mod state {
                 created: i64::from_le_bytes(*created),
                 voting_ends: i64::from_le_bytes(*voting_ends),
                 name: name,
-                votes:i64::from_le_bytes(*votes),
-                bump:bump,
+                votes: i64::from_le_bytes(*votes),
+                bump: bump,
+            })
+        }
+    }
+
+    pub struct Voter {
+        pub is_initialized: bool,
+        pub author: Pubkey,
+        pub num_votes: u8,
+        pub pos1: Pubkey,
+        pub pos2: Pubkey,
+        pub neg1: Pubkey,
+        pub bump: u8,
+    }
+
+    impl IsInitialized for Voter {
+        fn is_initialized(&self) -> bool {
+            self.is_initialized
+        }
+    }
+
+    impl Sealed for Voter {}
+    impl Pack for Voter {
+        const LEN: usize = 1    // is_initialzed
+        + 32                    // author
+        + 1                     // num votes
+        + 32                    // pos1
+        + 32                    // pos2
+        + 32                    // neg1
+        + 1; // bump
+
+        fn pack_into_slice(&self, dst: &mut [u8]) {
+            let dst = array_mut_ref![dst, 0, Voter::LEN];
+
+            let (
+                is_initialized_dst,
+                author_dst,
+                num_votes_dst,
+                pos1_dst,
+                pos2_dst,
+                neg1_dst,
+                bump_dst,
+            ) = mut_array_refs![dst, 1, 32, 1, 32, 32, 32, 1];
+
+            let Voter {
+                is_initialized,
+                author,
+                num_votes,
+                pos1,
+                pos2,
+                neg1,
+                bump,
+            } = self;
+
+            is_initialized_dst[0] = *is_initialized as u8;
+            author_dst.copy_from_slice(author.as_ref());
+            num_votes_dst[0] = *num_votes;
+            pos1_dst.copy_from_slice(pos1.as_ref());
+            pos2_dst.copy_from_slice(pos2.as_ref());
+            neg1_dst.copy_from_slice(neg1.as_ref());
+            bump_dst[0] = *bump;
+        }
+
+        fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
+            let src = array_ref![src, 0, Voter::LEN];
+            let (
+                is_initialized, 
+                author, 
+                num_votes, 
+                pos1, 
+                pos2, 
+                neg1, 
+                bump) =
+                array_refs![src, 1, 32, 1, 32, 32, 32, 1];
+
+            let is_initialized = match is_initialized {
+                [0] => false,
+                [1] => true,
+                _ => return Err(ProgramError::InvalidAccountData),
+            };
+
+            let bump = bump[0];
+            let num_votes = num_votes[0];
+
+            Ok(Voter {
+                is_initialized,
+                author: Pubkey::new_from_array(*author),
+                num_votes: num_votes,
+                pos1: Pubkey::new_from_array(*pos1),
+                pos2: Pubkey::new_from_array(*pos2),
+                neg1: Pubkey::new_from_array(*neg1),
+                bump: bump,
             })
         }
     }

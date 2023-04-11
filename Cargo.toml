@@ -22,6 +22,7 @@ solana-logger = "*"
 solana-program-test = "*"
 solana-sdk = "*"
 solana-validator = "*"
+solana-client="*"
 
 [lib]
 crate-type = ["cdylib", "lib"]

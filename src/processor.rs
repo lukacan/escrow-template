@@ -15,7 +15,7 @@ use solana_program::{
 };
 
 use crate::identifier::ID;
-use crate::state::state::Party;
+use crate::state::state::{Party, Voter};
 use crate::{error::JanecekError, instruction::instruction};
 
 pub struct Processor;
@@ -108,9 +108,10 @@ impl Processor {
                     program_id,
                 ),
                 &[system_program.clone(), author.clone(), party.clone()],
-                &[&[name.as_bytes(), &[bump]]],
+                &[&[&name.as_bytes(),&[bump]]],
             )?;
         } else {
+            msg!("{}", party.key);
             let required_lamports = rent
                 .minimum_balance(Party::LEN)
                 .max(1)
@@ -120,33 +121,25 @@ impl Processor {
                 program::invoke_signed(
                     &system_instruction::transfer(author.key, party.key, required_lamports),
                     &[system_program.clone(), author.clone(), party.clone()],
-                    &[&[name.as_bytes()], &[&[bump]]],
+                    &[&[&name.as_bytes(),&[bump]]],
                 )?;
             }
 
             program::invoke_signed(
                 &system_instruction::allocate(party.key, Party::LEN as u64),
                 &[system_program.clone(), party.clone()],
-                &[&[name.as_bytes()], &[&[bump]]],
+                &[&[&name.as_bytes(),&[bump]]],
             )?;
 
             program::invoke_signed(
                 &system_instruction::assign(party.key, program_id),
                 &[system_program.clone(), party.clone()],
-                &[&[name.as_bytes()], &[&[bump]]],
+                &[&[&name.as_bytes(),&[bump]]],
             )?;
         }
 
         if !author.is_signer {
             return Err(JanecekError::AccountNotSigner.into());
-        }
-
-        if !author.is_writable {}
-
-        if !party.is_writable {}
-
-        if pda != *party.key || _bump != bump {
-            return Err(JanecekError::PdaMismatch.into());
         }
         if !party.is_writable {
             return Err(JanecekError::ConstraintMut.into());
@@ -154,9 +147,13 @@ impl Processor {
         if !author.is_writable {
             return Err(JanecekError::ConstraintMut.into());
         }
+        if pda != *party.key || _bump != bump {
+            return Err(JanecekError::PdaMismatch.into());
+        }
         if !rent.is_exempt(party.lamports(), party.try_data_len()?) {
             return Err(JanecekError::ConstraintRentExempt.into());
         }
+        
         let mut party_state = Party::unpack_unchecked(&party.data.borrow_mut())?;
 
         if party_state.is_initialized() {
@@ -174,25 +171,124 @@ impl Processor {
             Party::pack(party_state, &mut &mut party.data.borrow_mut()[..])?;
         }
 
-        let party_state = Party::unpack(&party.data.borrow_mut())?;
-        msg!("{}", author.key);
-        msg!("{}", party_state.author);
-        msg!("{}", party_state.created);
-        msg!("{}", party_state.voting_ends);
-        msg!("{}", party_state.name);
-        msg!("{}", party_state.name.chars().count());
-        msg!("{}", party_state.votes);
-        msg!("{}", party_state.bump);
+        // let party_state = Party::unpack(&party.data.borrow_mut())?;
+        // msg!("Author: {}", author.key);
+        // msg!("Party: {}", party_state.author);
+        // msg!("Party: {}", party_state.created);
+        // msg!("Party: {}", party_state.voting_ends);
+        // msg!("Party: {}", party_state.name);
+        // msg!("Party: {}", party_state.name.chars().count());
+        // msg!("Party: {}", party_state.votes);
+        // msg!("Party: {}", party_state.bump);
 
         Ok(())
     }
 
     #[allow(dead_code)]
     fn process_create_voter(
-        _program_id: &Pubkey,
-        _accounts: &[AccountInfo],
-        _ix_data: &[u8],
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        ix_data: &[u8],
     ) -> ProgramResult {
+        let ix = instruction::CreateVoter::deserialize(&mut &ix_data[..])
+            .map_err(|_| JanecekError::InstructionDidNotDeserialize)?;
+
+        let instruction::CreateVoter { bump } = ix;
+
+        let accounts_iter = &mut accounts.iter();
+
+        let author = next_account_info(accounts_iter)?;
+
+        let voter = next_account_info(accounts_iter)?;
+
+        let system_program = next_account_info(accounts_iter)?;
+
+
+        let (pda, _bump) =
+            Pubkey::find_program_address(&[b"new_voter", author.key.as_ref()], program_id);
+
+        let rent = Rent::get()?;
+        let current_lamports = voter.lamports();
+        let lamports_needed = rent.minimum_balance(Voter::LEN);
+
+        if current_lamports == 0 {
+            program::invoke_signed(
+                &system_instruction::create_account(
+                    author.key,
+                    voter.key,
+                    lamports_needed,
+                    Voter::LEN as u64,
+                    program_id,
+                ),
+                &[system_program.clone(), author.clone(), voter.clone()],
+                &[&[b"new_voter".as_ref(),author.key.as_ref(),&[bump]]],
+            )?;
+        } else {
+            let required_lamports = rent
+                .minimum_balance(Voter::LEN)
+                .max(1)
+                .saturating_sub(current_lamports);
+
+            if required_lamports > 0 {
+                program::invoke_signed(
+                    &system_instruction::transfer(author.key, voter.key, required_lamports),
+                    &[system_program.clone(), author.clone(), voter.clone()],
+                    &[&[b"new_voter".as_ref(),author.key.as_ref(),&[bump]]],
+                )?;
+            }
+
+            program::invoke_signed(
+                &system_instruction::allocate(voter.key, Voter::LEN as u64),
+                &[system_program.clone(), voter.clone()],
+                &[&[b"new_voter".as_ref(),author.key.as_ref(),&[bump]]],
+            )?;
+
+            program::invoke_signed(
+                &system_instruction::assign(voter.key, program_id),
+                &[system_program.clone(), voter.clone()],
+                &[&[b"new_voter".as_ref(),author.key.as_ref(),&[bump]]],
+            )?;
+        }
+
+
+
+        if !author.is_signer {
+            return Err(JanecekError::AccountNotSigner.into());
+        }
+        if !voter.is_writable {
+            return Err(JanecekError::ConstraintMut.into());
+        }
+        if !author.is_writable {
+            return Err(JanecekError::ConstraintMut.into());
+        }
+        if pda != *voter.key || _bump != bump {
+            return Err(JanecekError::PdaMismatch.into());
+        }
+        if !rent.is_exempt(voter.lamports(), voter.try_data_len()?) {
+            return Err(JanecekError::ConstraintRentExempt.into());
+        }
+        let mut voter_state = Voter::unpack_unchecked(&voter.data.borrow_mut())?;
+
+        if voter_state.is_initialized() {
+            return Err(JanecekError::AccountAlreadyInitialized.into());
+        } else {
+            voter_state.is_initialized = true;
+            voter_state.author = *author.key;
+            voter_state.num_votes = 0;
+            voter_state.bump = bump;
+
+            Voter::pack(voter_state, &mut &mut voter.data.borrow_mut()[..])?;
+        }
+
+        // let voter_state = Voter::unpack(&voter.data.borrow_mut())?;
+        // msg!("Author {}", author.key);
+        // msg!("Voter {}", voter_state.author);
+        // msg!("Voter {}", voter_state.num_votes);
+        // msg!("Voter {}", voter_state.pos1);
+        // msg!("Voter {}", voter_state.pos2);
+        // msg!("Voter {}", voter_state.neg1);
+        // msg!("Voter {}", voter_state.bump);
+
         Ok(())
     }
     #[allow(dead_code)]
@@ -201,14 +297,15 @@ impl Processor {
         _accounts: &[AccountInfo],
         _ix_data: &[u8],
     ) -> ProgramResult {
-        Ok(())
+        todo!()
     }
     #[allow(dead_code)]
+
     fn process_vote_negative(
         _program_id: &Pubkey,
         _accounts: &[AccountInfo],
         _ix_data: &[u8],
     ) -> ProgramResult {
-        Ok(())
+        todo!()
     }
 }
