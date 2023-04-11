@@ -77,7 +77,7 @@ pub mod state {
             } = self;
 
             // check if name is too long
-            let name_len = self.name.chars().count() as u32;
+            let name_len = name.chars().count() as u32;
             is_initialized_dst[0] = *is_initialized as u8;
             author_dst.copy_from_slice(author.as_ref());
             *created_dst = created.to_le_bytes();
@@ -118,14 +118,24 @@ pub mod state {
                 _ => return Err(ProgramError::InvalidAccountData),
             };
 
+
+            let tmp_name = String::from_utf8(
+                name[0..name_len_ as usize].to_vec());
+
+            let name = match tmp_name{
+                Ok(_) => tmp_name.unwrap(),
+                Err(_) => String::from(""),
+
+            }; 
             let bump = bump[0];
     
+
             Ok(Party {
                 is_initialized,
                 author: Pubkey::new_from_array(*author),
                 created: i64::from_le_bytes(*created),
                 voting_ends: i64::from_le_bytes(*voting_ends),
-                name: <String as borsh::BorshDeserialize>::try_from_slice(&name[0..name_len_ as usize]).unwrap(),
+                name: name,
                 votes:i64::from_le_bytes(*votes),
                 bump:bump,
             })

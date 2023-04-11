@@ -2,6 +2,7 @@ use borsh::BorshDeserialize;
 use solana_program::account_info::next_account_info;
 
 use solana_program::clock::Clock;
+use solana_program::program;
 use solana_program::rent::Rent;
 use solana_program::system_instruction;
 use solana_program::sysvar::Sysvar;
@@ -12,7 +13,6 @@ use solana_program::{
     program_pack::{IsInitialized, Pack},
     pubkey::Pubkey,
 };
-use solana_program::{program};
 
 use crate::identifier::ID;
 use crate::state::state::Party;
@@ -117,24 +117,22 @@ impl Processor {
                 .saturating_sub(current_lamports);
 
             if required_lamports > 0 {
-                let instr = system_instruction::transfer(author.key, party.key, required_lamports);
-
                 program::invoke_signed(
-                    &instr,
-                    &[author.clone(), party.clone()],
+                    &system_instruction::transfer(author.key, party.key, required_lamports),
+                    &[system_program.clone(), author.clone(), party.clone()],
                     &[&[name.as_bytes()], &[&[bump]]],
                 )?;
             }
 
             program::invoke_signed(
                 &system_instruction::allocate(party.key, Party::LEN as u64),
-                &[party.clone()],
+                &[system_program.clone(), party.clone()],
                 &[&[name.as_bytes()], &[&[bump]]],
             )?;
 
             program::invoke_signed(
                 &system_instruction::assign(party.key, program_id),
-                &[party.clone()],
+                &[system_program.clone(), party.clone()],
                 &[&[name.as_bytes()], &[&[bump]]],
             )?;
         }
@@ -143,27 +141,24 @@ impl Processor {
             return Err(JanecekError::AccountNotSigner.into());
         }
 
-
         if !author.is_writable {}
 
         if !party.is_writable {}
 
-        if pda != *party.key ||  _bump != bump{
+        if pda != *party.key || _bump != bump {
             return Err(JanecekError::PdaMismatch.into());
         }
         if !party.is_writable {
             return Err(JanecekError::ConstraintMut.into());
-
         }
         if !author.is_writable {
             return Err(JanecekError::ConstraintMut.into());
         }
         if !rent.is_exempt(party.lamports(), party.try_data_len()?) {
             return Err(JanecekError::ConstraintRentExempt.into());
-
         }
         let mut party_state = Party::unpack_unchecked(&party.data.borrow_mut())?;
-        
+
         if party_state.is_initialized() {
             return Err(JanecekError::AccountAlreadyInitialized.into());
         } else {
@@ -176,24 +171,21 @@ impl Processor {
             party_state.votes = 0;
             party_state.bump = bump;
 
-            Party::pack(party_state,&mut &mut party.data.borrow_mut()[..])?;
-            msg!("Packed")
+            Party::pack(party_state, &mut &mut party.data.borrow_mut()[..])?;
         }
 
-        let party_state = Party::unpack_unchecked(&party.data.borrow_mut())?;
-        msg!("{}",author.key);
-        msg!("{}",party_state.author);
-        msg!("{}",party_state.created);
-        msg!("{}",party_state.voting_ends);
-        msg!("{}",party_state.name);
-        msg!("{}",party_state.name.chars().count());
-        msg!("{}",party_state.votes);
-        msg!("{}",party_state.bump);
-
+        let party_state = Party::unpack(&party.data.borrow_mut())?;
+        msg!("{}", author.key);
+        msg!("{}", party_state.author);
+        msg!("{}", party_state.created);
+        msg!("{}", party_state.voting_ends);
+        msg!("{}", party_state.name);
+        msg!("{}", party_state.name.chars().count());
+        msg!("{}", party_state.votes);
+        msg!("{}", party_state.bump);
 
         Ok(())
     }
-
 
     #[allow(dead_code)]
     fn process_create_voter(

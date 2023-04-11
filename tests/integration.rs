@@ -63,4 +63,38 @@ fn test_validator_transaction() {
     transaction.sign(&[&payer], blockhash);
 
     assert_matches!(rpc_client.send_and_confirm_transaction(&transaction), Ok(_));
+
+
+
+    let mut instruction_data2 = Vec::<u8>::new();
+    instruction_data2.push(0u8);
+    instruction_data2.push(5u8);
+    instruction_data2.push(0u8);
+    instruction_data2.push(0u8);
+    instruction_data2.push(0u8);
+
+    for byte in name.as_bytes() {
+        instruction_data2.push(*byte);
+    }
+
+    instruction_data2.push(bump);
+
+    let blockhash2 = rpc_client.get_latest_blockhash().unwrap();
+
+
+    let mut transaction2 = Transaction::new_with_payer(
+        &[Instruction {
+            program_id,
+            accounts: vec![
+                AccountMeta::new(payer.pubkey(), true),
+                AccountMeta::new(pda, false),
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+            ],
+            data: instruction_data2,
+        }],
+        Some(&payer.pubkey()),
+    );
+    transaction2.sign(&[&payer], blockhash2);
+
+    assert_matches!(rpc_client.send_and_confirm_transaction(&transaction2), Ok(_));
 }
