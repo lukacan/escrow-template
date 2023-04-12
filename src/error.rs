@@ -32,7 +32,18 @@ pub enum JanecekError {
     ConstraintRentExempt,
     #[error("Account is already initialized")]
     AccountAlreadyInitialized,
-
+    #[error("Vote positive first")]
+    VotePosFirst,
+    #[error("Can`t vote 2 times for same Party")]
+    NoBothPosSameParty,
+    #[error("Number of votes out of range")]
+    VotesOutOfRange,
+    #[error("Account not Initialzed yet")]
+    AccountNotInitialized,
+    #[error("No more positive votes can be added")]
+    PosOverflow,
+    #[error("Voting Ended")]
+    VotingEnded,
 }
 
 impl From<JanecekError> for ProgramError {
