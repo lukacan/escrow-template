@@ -37,7 +37,7 @@ impl Processor {
 
         // check if data contains at least 1 byte, so function can be decoded
         if data.len() < 1 {
-            return Err(JanecekError::MissmatchInstruction.into());
+            return Err(JanecekError::InvalidInstruction.into());
         }
         Self::dispatch(program_id, accounts, data)
     }
@@ -73,7 +73,7 @@ impl Processor {
                 msg!("Instruction: VoteNegative");
                 Self::process_vote_negative(program_id, accounts, ix_data)
             }
-            _ => Err(JanecekError::InstructionFallbackNotFound.into()),
+            _ => Err(JanecekError::InvalidInstruction.into()),
         }
     }
 
@@ -248,7 +248,7 @@ impl Processor {
         }
 
         if *system_program.key != solana_program::system_program::id() {
-            return Err(JanecekError::AccountNotSystemOwned.into());
+            return Err(JanecekError::SystemIDMismatch.into());
         }
 
         // check if initiator is signer
@@ -258,13 +258,13 @@ impl Processor {
 
         // check mutables
         if !initiator.is_writable {
-            return Err(JanecekError::ConstraintMut.into());
+            return Err(JanecekError::AccountNotmutable.into());
         }
         if !voting_state.is_writable {
-            return Err(JanecekError::ConstraintMut.into());
+            return Err(JanecekError::AccountNotmutable.into());
         }
         if !voting_owner.is_writable {
-            return Err(JanecekError::ConstraintMut.into());
+            return Err(JanecekError::AccountNotmutable.into());
         }
 
         // check provided PDAs and bumps match
@@ -404,7 +404,7 @@ impl Processor {
 
         // check system program id
         if *system_program.key != solana_program::system_program::id() {
-            return Err(JanecekError::AccountNotSystemOwned.into());
+            return Err(JanecekError::SystemIDMismatch.into());
         }
 
         // check signers
@@ -417,10 +417,10 @@ impl Processor {
 
         // check mutables
         if !pda_party.is_writable {
-            return Err(JanecekError::ConstraintMut.into());
+            return Err(JanecekError::AccountNotmutable.into());
         }
         if !author.is_writable {
-            return Err(JanecekError::ConstraintMut.into());
+            return Err(JanecekError::AccountNotmutable.into());
         }
 
         // pda correctness
@@ -585,7 +585,7 @@ impl Processor {
 
         // check system program id
         if *system_program.key != solana_program::system_program::id() {
-            return Err(JanecekError::AccountNotSystemOwned.into());
+            return Err(JanecekError::SystemIDMismatch.into());
         }
 
         // everyone can add yourself as voter, so owner dont need to sign
@@ -595,10 +595,10 @@ impl Processor {
 
         // check mutables
         if !pda_voter.is_writable {
-            return Err(JanecekError::ConstraintMut.into());
+            return Err(JanecekError::AccountNotmutable.into());
         }
         if !author.is_writable {
-            return Err(JanecekError::ConstraintMut.into());
+            return Err(JanecekError::AccountNotmutable.into());
         }
 
         // pda correctness
@@ -706,7 +706,7 @@ impl Processor {
 
         // check system program id
         if *system_program.key != solana_program::system_program::id() {
-            return Err(JanecekError::AccountNotSystemOwned.into());
+            return Err(JanecekError::SystemIDMismatch.into());
         }
 
         // check if voter signed
@@ -716,10 +716,10 @@ impl Processor {
 
         // check mutables
         if !pda_voter.is_writable {
-            return Err(JanecekError::ConstraintMut.into());
+            return Err(JanecekError::AccountNotmutable.into());
         }
         if !pda_party.is_writable {
-            return Err(JanecekError::ConstraintMut.into());
+            return Err(JanecekError::AccountNotmutable.into());
         }
 
         // check PDA correctness
@@ -744,33 +744,27 @@ impl Processor {
 
         let state_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
 
-        // check if voter initialized
-        if !voter_state.is_initialized() {
-            return Err(JanecekError::AccountNotInitialized.into());
-        }
-
-        // check if party initialized
-        if !party_state.is_initialized() {
-            return Err(JanecekError::AccountNotInitialized.into());
-        }
-
-        // check if state and owner are initialized
-        if !owner_state.is_initialized() || !state_state.is_initialized() {
-            return Err(JanecekError::AccountNotInitialized.into());
-        }
-
-        // check if owner and state correspond to each other
-        if (state_state.voting_owner != owner_state.initializer)
-            || (owner_state.voting_state != *pda_state.key)
+        // check initialized accounts
+        if !owner_state.is_initialized()
+            || !state_state.is_initialized()
+            || !party_state.is_initialized()
+            || !voter_state.is_initialized()
         {
+            return Err(JanecekError::AccountNotInitialized.into());
+        }
+
+        // check if owner corresponds
+        if state_state.voting_owner != owner_state.initializer {
             return Err(JanecekError::VotingOwnerMismatch.into());
         }
-
+        // check if state corresponds
+        if owner_state.voting_state != *pda_state.key {
+            return Err(JanecekError::VotingStateMismatch.into());
+        }
         // check if voter exists in this voting state
         if *pda_state.key != voter_state.voting_state {
             return Err(JanecekError::VotingStateMismatch.into());
         }
-
         // check if party exists in this voting state
         if *pda_state.key != party_state.voting_state {
             return Err(JanecekError::VotingStateMismatch.into());
@@ -781,44 +775,51 @@ impl Processor {
             return Err(JanecekError::VotingEnded.into());
         }
 
-        if voter_state.num_votes == 3 {
-            match voter_state.num_votes.checked_sub(1) {
-                Some(sucess) => voter_state.num_votes = sucess,
-                None => return Err(JanecekError::SubtractionOverflow.into()),
+        match voter_state.num_votes {
+            0 => {
+                return Err(JanecekError::NoMoreVotes.into());
             }
-            voter_state.pos1 = *pda_party.key;
-
-            match party_state.votes.checked_add(1) {
-                Some(sucess) => party_state.votes = sucess,
-                None => return Err(JanecekError::AdditionOverflow.into()),
+            1 => {
+                return Err(JanecekError::NoMorePosVotes.into());
             }
+            2 => {
+                if voter_state.pos1 == *pda_party.key {
+                    return Err(JanecekError::NoBothPosSameParty.into());
+                } else {
+                    match voter_state.num_votes.checked_sub(1) {
+                        Some(sucess) => voter_state.num_votes = sucess,
+                        None => return Err(JanecekError::SubtractionOverflow.into()),
+                    }
+                    voter_state.pos2 = *pda_party.key;
 
-            Voter::pack(voter_state, &mut &mut pda_voter.data.borrow_mut()[..])?;
-            Party::pack(party_state, &mut &mut pda_party.data.borrow_mut()[..])?;
+                    match party_state.votes.checked_add(1) {
+                        Some(sucess) => party_state.votes = sucess,
+                        None => return Err(JanecekError::AdditionOverflow.into()),
+                    }
 
-            Ok(())
-        } else if voter_state.num_votes == 2 {
-            if voter_state.pos1 == *pda_party.key {
-                return Err(JanecekError::NoBothPosSameParty.into());
-            } else {
+                    Voter::pack(voter_state, &mut &mut pda_voter.data.borrow_mut()[..])?;
+                    Party::pack(party_state, &mut &mut pda_party.data.borrow_mut()[..])?;
+
+                    Ok(())
+                }
+            }
+            3 => {
                 match voter_state.num_votes.checked_sub(1) {
                     Some(sucess) => voter_state.num_votes = sucess,
                     None => return Err(JanecekError::SubtractionOverflow.into()),
                 }
-                voter_state.pos2 = *pda_party.key;
-
+                voter_state.pos1 = *pda_party.key;
                 match party_state.votes.checked_add(1) {
                     Some(sucess) => party_state.votes = sucess,
                     None => return Err(JanecekError::AdditionOverflow.into()),
                 }
-
                 Voter::pack(voter_state, &mut &mut pda_voter.data.borrow_mut()[..])?;
                 Party::pack(party_state, &mut &mut pda_party.data.borrow_mut()[..])?;
-
                 Ok(())
             }
-        } else {
-            return Err(JanecekError::VotesOutOfRange.into());
+            _ => {
+                return Err(JanecekError::VotesOutOfRange.into());
+            }
         }
     }
     #[allow(dead_code)]
@@ -871,7 +872,7 @@ impl Processor {
 
         // check system program id
         if *system_program.key != solana_program::system_program::id() {
-            return Err(JanecekError::AccountNotSystemOwned.into());
+            return Err(JanecekError::SystemIDMismatch.into());
         }
 
         // check if voter signed
@@ -881,10 +882,10 @@ impl Processor {
 
         // check mutables
         if !pda_voter.is_writable {
-            return Err(JanecekError::ConstraintMut.into());
+            return Err(JanecekError::AccountNotmutable.into());
         }
         if !pda_party.is_writable {
-            return Err(JanecekError::ConstraintMut.into());
+            return Err(JanecekError::AccountNotmutable.into());
         }
 
         // check PDA correctness
@@ -909,24 +910,22 @@ impl Processor {
 
         let state_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
 
-        // check if voter initialized
-        if !voter_state.is_initialized() {
+        // check initialized accounts
+        if !owner_state.is_initialized()
+            || !state_state.is_initialized()
+            || !party_state.is_initialized()
+            || !voter_state.is_initialized()
+        {
             return Err(JanecekError::AccountNotInitialized.into());
         }
 
-        // check if party initialized
-        if !party_state.is_initialized() {
-            return Err(JanecekError::AccountNotInitialized.into());
-        }
-
-        // check if state and owner are initialized
-        if !owner_state.is_initialized() || !state_state.is_initialized() {
-            return Err(JanecekError::AccountNotInitialized.into());
-        }
-
-        // check if owner and state correspond to each other
+        // check if owner corresponds
         if state_state.voting_owner != owner_state.initializer {
             return Err(JanecekError::VotingOwnerMismatch.into());
+        }
+        // check if state corresponds
+        if owner_state.voting_state != *pda_state.key {
+            return Err(JanecekError::VotingStateMismatch.into());
         }
 
         // check if voter exists in this voting state
@@ -945,24 +944,36 @@ impl Processor {
             return Err(JanecekError::VotingEnded.into());
         }
 
-        if voter_state.num_votes == 1 {
-            match voter_state.num_votes.checked_sub(1) {
-                Some(sucess) => voter_state.num_votes = sucess,
-                None => return Err(JanecekError::SubtractionOverflow.into()),
+        match voter_state.num_votes {
+            0 => {
+                return Err(JanecekError::NoMoreVotes.into());
             }
-            voter_state.neg1 = *pda_party.key;
+            1 => {
+                match voter_state.num_votes.checked_sub(1) {
+                    Some(sucess) => voter_state.num_votes = sucess,
+                    None => return Err(JanecekError::SubtractionOverflow.into()),
+                }
+                voter_state.neg1 = *pda_party.key;
 
-            match party_state.votes.checked_sub(1) {
-                Some(sucess) => party_state.votes = sucess,
-                None => return Err(JanecekError::SubtractionOverflow.into()),
+                match party_state.votes.checked_sub(1) {
+                    Some(sucess) => party_state.votes = sucess,
+                    None => return Err(JanecekError::SubtractionOverflow.into()),
+                }
+
+                Voter::pack(voter_state, &mut &mut pda_voter.data.borrow_mut()[..])?;
+                Party::pack(party_state, &mut &mut pda_party.data.borrow_mut()[..])?;
+
+                Ok(())
             }
-
-            Voter::pack(voter_state, &mut &mut pda_voter.data.borrow_mut()[..])?;
-            Party::pack(party_state, &mut &mut pda_party.data.borrow_mut()[..])?;
-
-            Ok(())
-        } else {
-            return Err(JanecekError::VotesOutOfRange.into());
+            2 => {
+                return Err(JanecekError::VoteNegativeConstrain.into());
+            }
+            3 => {
+                return Err(JanecekError::VoteNegativeConstrain.into());
+            }
+            _ => {
+                return Err(JanecekError::VotesOutOfRange.into());
+            }
         }
     }
 }
