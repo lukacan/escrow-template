@@ -196,8 +196,6 @@ fn vote_positive(
     rpc_client.send_and_confirm_transaction(&transaction)
 }
 
-
-
 fn vote_negative(
     rpc_client: &RpcClient,
     initializer: &Pubkey,
@@ -287,6 +285,17 @@ fn test_validator_transaction() {
     );
     testvalgen.add_account(bob.pubkey(), account);
 
+
+    let diana = Keypair::new();
+
+    let account = AccountSharedData::new(
+        LAMPORTS_PER_SOL * 2,
+        0,
+        &solana_program::system_program::id(),
+    );
+    testvalgen.add_account(diana.pubkey(), account);
+
+
     let (test_validator, _payer) = testvalgen
         .add_program("target/deploy/bpf_program_template", id())
         .start();
@@ -294,12 +303,18 @@ fn test_validator_transaction() {
     solana_logger::setup_with_default("solana_runtime::message=debug");
     let rpc_client = test_validator.get_rpc_client();
 
-    let party_name: String = String::from("Alice Party");
+    let alice_party: String = String::from("Alice Party");
+    let diana_party: String = String::from("Diana Party");
+
 
     assert_matches!(initialize(&rpc_client, &initializer), Ok(_));
 
     assert_matches!(
-        create_party(&rpc_client, &initializer, &alice, &party_name),
+        create_party(&rpc_client, &initializer, &alice, &alice_party),
+        Ok(_)
+    );
+    assert_matches!(
+        create_party(&rpc_client, &initializer, &alice, &diana_party),
         Ok(_)
     );
     assert_matches!(
@@ -307,15 +322,27 @@ fn test_validator_transaction() {
         Ok(_)
     );
     assert_matches!(
-        vote_positive(&rpc_client, &initializer.pubkey(), &bob, &party_name),
+        vote_positive(&rpc_client, &initializer.pubkey(), &bob, &alice_party),
         Ok(_)
     );
     assert_matches!(
-        vote_positive(&rpc_client, &initializer.pubkey(), &bob, &party_name),
+        vote_positive(&rpc_client, &initializer.pubkey(), &bob, &alice_party),
         Err(_)
     );
     assert_matches!(
-        vote_negative(&rpc_client, &initializer.pubkey(), &bob, &party_name),
+        vote_negative(&rpc_client, &initializer.pubkey(), &bob, &alice_party),
+        Err(_)
+    );
+    assert_matches!(
+        vote_positive(&rpc_client, &initializer.pubkey(), &bob, &diana_party),
+        Ok(_)
+    );
+    assert_matches!(
+        vote_negative(&rpc_client, &initializer.pubkey(), &bob, &alice_party),
+        Ok(_)
+    );
+    assert_matches!(
+        vote_negative(&rpc_client, &initializer.pubkey(), &bob, &alice_party),
         Err(_)
     );
 }

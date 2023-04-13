@@ -220,7 +220,7 @@ pub mod state {
         + 32                    // voting owner
         + 8                     // voting started
         +8                      // voting ends
-        +1;                     // bump
+        +1; // bump
 
         fn pack_into_slice(&self, dst: &mut [u8]) {
             let dst = array_mut_ref![dst, 0, VotingState::LEN];
@@ -250,7 +250,7 @@ pub mod state {
 
         fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
             let src = array_ref![src, 0, VotingState::LEN];
-            let (is_initialized, voting_owner, voting_started, voting_ends,bump) =
+            let (is_initialized, voting_owner, voting_started, voting_ends, bump) =
                 array_refs![src, 1, 32, 8, 8, 1];
 
             let is_initialized = match is_initialized {
@@ -283,22 +283,18 @@ pub mod state {
         }
     }
 
-    impl Sealed for VotingOwner{}
-    impl Pack for VotingOwner{
+    impl Sealed for VotingOwner {}
+    impl Pack for VotingOwner {
         const LEN: usize = 1    // is initialzed
         + 32                    // initializer
         + 32                    // voting state
-        +1;                     // bump
+        +1; // bump
 
         fn pack_into_slice(&self, dst: &mut [u8]) {
             let dst = array_mut_ref![dst, 0, VotingOwner::LEN];
 
-            let (
-                is_initialized_dst,
-                initializer_dst,
-                voting_state_dst,
-                bump_dst,
-            ) = mut_array_refs![dst, 1, 32, 32, 1];
+            let (is_initialized_dst, initializer_dst, voting_state_dst, bump_dst) =
+                mut_array_refs![dst, 1, 32, 32, 1];
 
             let VotingOwner {
                 is_initialized,
@@ -311,12 +307,11 @@ pub mod state {
             initializer_dst.copy_from_slice(initializer.as_ref());
             voting_state_dst.copy_from_slice(voting_state.as_ref());
             bump_dst[0] = *bump;
-    }
+        }
 
         fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
             let src = array_ref![src, 0, VotingOwner::LEN];
-            let (is_initialized, initializer, voting_state,bump) =
-                array_refs![src, 1, 32, 32, 1];
+            let (is_initialized, initializer, voting_state, bump) = array_refs![src, 1, 32, 32, 1];
 
             let is_initialized = match is_initialized {
                 [0] => false,
@@ -332,7 +327,6 @@ pub mod state {
                 voting_state: Pubkey::new_from_array(*voting_state),
                 bump: bump,
             })
-    }
+        }
     }
 }
-

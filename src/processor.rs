@@ -1,20 +1,19 @@
 use borsh::BorshDeserialize;
-use solana_program::account_info::next_account_info;
 
 use crate::state::state::{Party, Voter, VotingOwner, VotingState};
 use crate::{error::JanecekError, instruction::instruction};
-use solana_program::clock::Clock;
-use solana_program::rent::Rent;
-use solana_program::system_instruction;
-use solana_program::sysvar::Sysvar;
 use solana_program::{
-    account_info::AccountInfo,
+    account_info::{next_account_info, AccountInfo},
+    clock::Clock,
     entrypoint::ProgramResult,
     msg,
     program_pack::{IsInitialized, Pack},
     pubkey::Pubkey,
+    rent::Rent,
+    system_instruction,
+    sysvar::Sysvar,
+    {declare_id, program},
 };
-use solana_program::{declare_id, program};
 
 declare_id!("Fnambs3f1XXoMmAVc94bf8t6JDAxmVkXz85XU4v2edph");
 
@@ -943,7 +942,7 @@ impl Processor {
             Party::pack(party_state, &mut &mut pda_party.data.borrow_mut()[..])?;
 
             Ok(())
-        }else {
+        } else {
             return Err(JanecekError::VotesOutOfRange.into());
         }
     }
