@@ -17,11 +17,16 @@ pub mod instruction {
     }
     #[derive(Debug,BorshDeserialize,BorshSerialize)]
     pub struct CreateVoter{
-        pub bump:u8,
+        pub bump_owner:u8,
+        pub bump_state:u8,
+        pub bump_voter:u8,
     }
     #[derive(Debug,BorshSerialize,BorshDeserialize)]
     pub struct Vote{
-        pub bump:u8,
-
+        pub bump_owner:u8,
+        pub bump_state:u8,
+        pub bump_voter:u8,
+        pub bump_party:u8,
+        pub name: String,
     }
 }

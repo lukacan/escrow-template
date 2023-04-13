@@ -15,7 +15,6 @@ pub mod state {
         pub author: Pubkey,
         pub voting_state: Pubkey,
         pub created: i64,
-        pub voting_ends: i64,
         pub name: String,
         pub votes: i64,
         pub bump: u8,
@@ -34,7 +33,6 @@ pub mod state {
         + 32                    // author
         + 32                    // voting state
         + 8                     // created
-        + 8                     // voting ends
         + 4                     // vector prefix
         + NAME_LENGTH * 4       // number of bytes * size of char
         + 8                     // votes
@@ -48,19 +46,17 @@ pub mod state {
                 author_dst,
                 voting_state_dst,
                 created_dst,
-                voting_ends_dst,
                 name_len_dst,
                 name_dst,
                 votes_dst,
                 bump_dst,
-            ) = mut_array_refs![dst, 1, 32, 32, 8, 8, 4, 4 * NAME_LENGTH, 8, 1];
+            ) = mut_array_refs![dst, 1, 32, 32, 8, 4, 4 * NAME_LENGTH, 8, 1];
 
             let Party {
                 is_initialized,
                 author,
                 voting_state,
                 created,
-                voting_ends,
                 name,
                 votes,
                 bump,
@@ -72,7 +68,6 @@ pub mod state {
             author_dst.copy_from_slice(author.as_ref());
             voting_state_dst.copy_from_slice(voting_state.as_ref());
             *created_dst = created.to_le_bytes();
-            *voting_ends_dst = voting_ends.to_le_bytes();
             *name_len_dst = name_len.to_le_bytes();
             name_dst[..name_len as usize].copy_from_slice(name.as_bytes());
             *votes_dst = votes.to_be_bytes();
@@ -80,8 +75,8 @@ pub mod state {
         }
         fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
             let src = array_ref![src, 0, Party::LEN];
-            let (is_initialized, author, voting_state, created, voting_ends, name_len, name, votes, bump) =
-                array_refs![src, 1, 32, 32, 8, 8, 4, 4 * NAME_LENGTH, 8, 1];
+            let (is_initialized, author, voting_state, created, name_len, name, votes, bump) =
+                array_refs![src, 1, 32, 32, 8, 4, 4 * NAME_LENGTH, 8, 1];
 
             let name_len_ = u32::from_le_bytes(*name_len);
 
@@ -108,7 +103,6 @@ pub mod state {
                 author: Pubkey::new_from_array(*author),
                 voting_state: Pubkey::new_from_array(*voting_state),
                 created: i64::from_le_bytes(*created),
-                voting_ends: i64::from_le_bytes(*voting_ends),
                 name: name,
                 votes: i64::from_le_bytes(*votes),
                 bump: bump,

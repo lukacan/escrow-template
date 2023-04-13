@@ -40,10 +40,16 @@ pub enum JanecekError {
     VotesOutOfRange,
     #[error("Account not Initialzed yet")]
     AccountNotInitialized,
-    #[error("No more positive votes can be added")]
-    PosOverflow,
+    #[error("Addition overflow")]
+    AdditionOverflow,
+    #[error("Subtraction overflow")]
+    SubtractionOverflow,
     #[error("Voting Ended")]
     VotingEnded,
+    #[error("Voting owner mismatch")]
+    VotingOwnerMismatch,
+    #[error("Voting state mismatch")]
+    VotingStateMismatch,
 }
 
 impl From<JanecekError> for ProgramError {

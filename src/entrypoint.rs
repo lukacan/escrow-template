@@ -5,8 +5,6 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-//declare_id!("Fnambs3f1XXoMmAVc94bf8t6JDAxmVkXz85XU4v2edph");
-
 use crate::processor::Processor;
 
 entrypoint!(process_instruction);

@@ -1,8 +1,12 @@
 //#![cfg(feature = "test-bpf")]
-
+use solana_client::client_error::ClientError;
 use solana_client::rpc_client::RpcClient;
 use solana_program::native_token::LAMPORTS_PER_SOL;
-use solana_sdk::{account::AccountSharedData, declare_id, signature::Keypair};
+use solana_sdk::{
+    account::AccountSharedData,
+    declare_id,
+    signature::{Keypair, Signature},
+};
 
 use {
     assert_matches::*,
@@ -15,7 +19,7 @@ use {
 };
 
 declare_id!("Fnambs3f1XXoMmAVc94bf8t6JDAxmVkXz85XU4v2edph");
-fn initialize(rpc_client: &RpcClient, initializer: &Keypair) {
+fn initialize(rpc_client: &RpcClient, initializer: &Keypair) -> Result<Signature, ClientError> {
     let blockhash = rpc_client.get_latest_blockhash().unwrap();
 
     let (pda_owner, bump_owner) =
@@ -30,9 +34,9 @@ fn initialize(rpc_client: &RpcClient, initializer: &Keypair) {
         &[Instruction {
             program_id: id(),
             accounts: vec![
-                AccountMeta::new(initializer.pubkey(), true),   // initializer
-                AccountMeta::new(pda_owner, false),             // voting owner
-                AccountMeta::new(pda_state, false),             // voting state
+                AccountMeta::new(initializer.pubkey(), true), // initializer
+                AccountMeta::new(pda_owner, false),           // voting owner
+                AccountMeta::new(pda_state, false),           // voting state
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
             ],
             data: instruction_data,
@@ -41,10 +45,15 @@ fn initialize(rpc_client: &RpcClient, initializer: &Keypair) {
     );
     transaction.sign(&[initializer], blockhash);
 
-    assert_matches!(rpc_client.send_and_confirm_transaction(&transaction), Ok(_));
+    rpc_client.send_and_confirm_transaction(&transaction)
 }
 
-fn create_party(rpc_client: &RpcClient, initializer: &Keypair, person: &Keypair) {
+fn create_party(
+    rpc_client: &RpcClient,
+    initializer: &Keypair,
+    person: &Keypair,
+    party_name: &String,
+) -> Result<Signature, ClientError> {
     let blockhash = rpc_client.get_latest_blockhash().unwrap();
 
     let (pda_owner, bump_owner) =
@@ -53,22 +62,20 @@ fn create_party(rpc_client: &RpcClient, initializer: &Keypair, person: &Keypair)
     let (pda_state, bump_state) =
         Pubkey::find_program_address(&[b"voting_state", pda_owner.as_ref()], &id());
 
-    let name: &str = "Party1";
-
-    let (pda_party, bump_party) = Pubkey::find_program_address(
-        &[name.as_bytes(),pda_state.as_ref()], 
-        &id());
+    let (pda_party, bump_party) =
+        Pubkey::find_program_address(&[party_name.as_bytes(), pda_state.as_ref()], &id());
 
     let mut instruction_data = vec![
         1u8,
         bump_owner,
         bump_state,
-        bump_party, 
-        name.chars().count() as u8, 
-        0u8, 
-        0u8, 
-        0u8];
-    for byte in name.as_bytes() {
+        bump_party,
+        party_name.chars().count() as u8,
+        0u8,
+        0u8,
+        0u8,
+    ];
+    for byte in party_name.as_bytes() {
         instruction_data.push(*byte);
     }
 
@@ -76,11 +83,11 @@ fn create_party(rpc_client: &RpcClient, initializer: &Keypair, person: &Keypair)
         &[Instruction {
             program_id: id(),
             accounts: vec![
-                AccountMeta::new(person.pubkey(), true),            // persone that wants to create party
-                AccountMeta::new_readonly(initializer.pubkey(), true),       // owner
-                AccountMeta::new_readonly(pda_owner, false),        // voting owner
-                AccountMeta::new_readonly(pda_state, false),        // voting state
-                AccountMeta::new(pda_party, false),                 // party
+                AccountMeta::new(person.pubkey(), true), // persone that wants to create party
+                AccountMeta::new_readonly(initializer.pubkey(), true), // owner
+                AccountMeta::new_readonly(pda_owner, false), // voting owner
+                AccountMeta::new_readonly(pda_state, false), // voting state
+                AccountMeta::new(pda_party, false),      // party
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
             ],
             data: instruction_data,
@@ -89,31 +96,163 @@ fn create_party(rpc_client: &RpcClient, initializer: &Keypair, person: &Keypair)
     );
     transaction.sign(&[person, initializer], blockhash);
 
-    assert_matches!(rpc_client.send_and_confirm_transaction(&transaction), Ok(_));
+    rpc_client.send_and_confirm_transaction(&transaction)
 }
 
-fn create_voter(rpc_client: &RpcClient, payer: &Keypair) {
+fn create_voter(
+    rpc_client: &RpcClient,
+    initializer: &Pubkey,
+    voter: &Keypair,
+) -> Result<Signature, ClientError> {
     let blockhash = rpc_client.get_latest_blockhash().unwrap();
 
-    let (pda, bump) = Pubkey::find_program_address(&[b"new_voter", payer.pubkey().as_ref()], &id());
+    let (pda_owner, bump_owner) =
+        Pubkey::find_program_address(&[b"voting_owner", initializer.as_ref()], &id());
 
-    let instruction_data = vec![2u8, bump];
+    let (pda_state, bump_state) =
+        Pubkey::find_program_address(&[b"voting_state", pda_owner.as_ref()], &id());
+
+    let (pda_voter, bump_voter) = Pubkey::find_program_address(
+        &[b"new_voter", voter.pubkey().as_ref(), pda_state.as_ref()],
+        &id(),
+    );
+
+    let instruction_data = vec![2u8, bump_owner, bump_state, bump_voter];
 
     let mut transaction = Transaction::new_with_payer(
         &[Instruction {
             program_id: id(),
             accounts: vec![
-                AccountMeta::new(payer.pubkey(), true),
-                AccountMeta::new(pda, false),
+                AccountMeta::new(voter.pubkey(), true), // persone that wants to be voter
+                AccountMeta::new_readonly(*initializer, false), // owner
+                AccountMeta::new_readonly(pda_owner, false), // voting owner
+                AccountMeta::new_readonly(pda_state, false), // voting state
+                AccountMeta::new(pda_voter, false),     // voter
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
             ],
             data: instruction_data,
         }],
-        Some(&payer.pubkey()),
+        Some(&voter.pubkey()),
     );
-    transaction.sign(&[payer], blockhash);
+    transaction.sign(&[voter], blockhash);
 
-    assert_matches!(rpc_client.send_and_confirm_transaction(&transaction), Ok(_));
+    rpc_client.send_and_confirm_transaction(&transaction)
+}
+
+fn vote_positive(
+    rpc_client: &RpcClient,
+    initializer: &Pubkey,
+    voter: &Keypair,
+    party_name: &String,
+) -> Result<Signature, ClientError> {
+    let blockhash = rpc_client.get_latest_blockhash().unwrap();
+
+    let (pda_owner, bump_owner) =
+        Pubkey::find_program_address(&[b"voting_owner", initializer.as_ref()], &id());
+
+    let (pda_state, bump_state) =
+        Pubkey::find_program_address(&[b"voting_state", pda_owner.as_ref()], &id());
+
+    let (pda_voter, bump_voter) = Pubkey::find_program_address(
+        &[b"new_voter", voter.pubkey().as_ref(), pda_state.as_ref()],
+        &id(),
+    );
+    let (pda_party, bump_party) =
+        Pubkey::find_program_address(&[party_name.as_bytes(), pda_state.as_ref()], &id());
+
+    let mut instruction_data = vec![
+        3u8,
+        bump_owner,
+        bump_state,
+        bump_voter,
+        bump_party,
+        party_name.chars().count() as u8,
+        0u8,
+        0u8,
+        0u8,
+    ];
+    for byte in party_name.as_bytes() {
+        instruction_data.push(*byte);
+    }
+
+    let mut transaction = Transaction::new_with_payer(
+        &[Instruction {
+            program_id: id(),
+            accounts: vec![
+                AccountMeta::new(voter.pubkey(), true), // persone that wants to be voter
+                AccountMeta::new_readonly(*initializer, false), // owner
+                AccountMeta::new_readonly(pda_owner, false), // voting owner
+                AccountMeta::new_readonly(pda_state, false), // voting state
+                AccountMeta::new(pda_voter, false),     // voter
+                AccountMeta::new(pda_party, false),     // party
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+            ],
+            data: instruction_data,
+        }],
+        Some(&voter.pubkey()),
+    );
+    transaction.sign(&[voter], blockhash);
+
+    rpc_client.send_and_confirm_transaction(&transaction)
+}
+
+
+
+fn vote_negative(
+    rpc_client: &RpcClient,
+    initializer: &Pubkey,
+    voter: &Keypair,
+    party_name: &String,
+) -> Result<Signature, ClientError> {
+    let blockhash = rpc_client.get_latest_blockhash().unwrap();
+
+    let (pda_owner, bump_owner) =
+        Pubkey::find_program_address(&[b"voting_owner", initializer.as_ref()], &id());
+
+    let (pda_state, bump_state) =
+        Pubkey::find_program_address(&[b"voting_state", pda_owner.as_ref()], &id());
+
+    let (pda_voter, bump_voter) = Pubkey::find_program_address(
+        &[b"new_voter", voter.pubkey().as_ref(), pda_state.as_ref()],
+        &id(),
+    );
+    let (pda_party, bump_party) =
+        Pubkey::find_program_address(&[party_name.as_bytes(), pda_state.as_ref()], &id());
+
+    let mut instruction_data = vec![
+        4u8,
+        bump_owner,
+        bump_state,
+        bump_voter,
+        bump_party,
+        party_name.chars().count() as u8,
+        0u8,
+        0u8,
+        0u8,
+    ];
+    for byte in party_name.as_bytes() {
+        instruction_data.push(*byte);
+    }
+
+    let mut transaction = Transaction::new_with_payer(
+        &[Instruction {
+            program_id: id(),
+            accounts: vec![
+                AccountMeta::new(voter.pubkey(), true), // persone that wants to be voter
+                AccountMeta::new_readonly(*initializer, false), // owner
+                AccountMeta::new_readonly(pda_owner, false), // voting owner
+                AccountMeta::new_readonly(pda_state, false), // voting state
+                AccountMeta::new(pda_voter, false),     // voter
+                AccountMeta::new(pda_party, false),     // party
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+            ],
+            data: instruction_data,
+        }],
+        Some(&voter.pubkey()),
+    );
+    transaction.sign(&[voter], blockhash);
+
+    rpc_client.send_and_confirm_transaction(&transaction)
 }
 #[test]
 fn test_validator_transaction() {
@@ -155,7 +294,28 @@ fn test_validator_transaction() {
     solana_logger::setup_with_default("solana_runtime::message=debug");
     let rpc_client = test_validator.get_rpc_client();
 
-    initialize(&rpc_client, &initializer);
-    create_party(&rpc_client, &initializer ,&alice);
-    // create_voter(&rpc_client, &payer);
+    let party_name: String = String::from("Alice Party");
+
+    assert_matches!(initialize(&rpc_client, &initializer), Ok(_));
+
+    assert_matches!(
+        create_party(&rpc_client, &initializer, &alice, &party_name),
+        Ok(_)
+    );
+    assert_matches!(
+        create_voter(&rpc_client, &initializer.pubkey(), &bob),
+        Ok(_)
+    );
+    assert_matches!(
+        vote_positive(&rpc_client, &initializer.pubkey(), &bob, &party_name),
+        Ok(_)
+    );
+    assert_matches!(
+        vote_positive(&rpc_client, &initializer.pubkey(), &bob, &party_name),
+        Err(_)
+    );
+    assert_matches!(
+        vote_negative(&rpc_client, &initializer.pubkey(), &bob, &party_name),
+        Err(_)
+    );
 }
