@@ -251,20 +251,12 @@ impl Processor {
             return Err(JanecekError::AccountNotSystemOwned.into());
         }
 
-        // check provided PDAs and bumps match
-        if voting_owner_pda != *voting_owner.key || bump_owner_ != bump_owner {
-            return Err(JanecekError::PdaMismatch.into());
-        }
-        if voting_state_pda != *voting_state.key || bump_state_ != bump_state {
-            return Err(JanecekError::PdaMismatch.into());
-        }
-
         // check if initiator is signer
         if !initiator.is_signer {
             return Err(JanecekError::AccountNotSigner.into());
         }
 
-        // check mutable state
+        // check mutables
         if !initiator.is_writable {
             return Err(JanecekError::ConstraintMut.into());
         }
@@ -273,6 +265,14 @@ impl Processor {
         }
         if !voting_owner.is_writable {
             return Err(JanecekError::ConstraintMut.into());
+        }
+
+        // check provided PDAs and bumps match
+        if voting_owner_pda != *voting_owner.key || bump_owner_ != bump_owner {
+            return Err(JanecekError::PdaMismatch.into());
+        }
+        if voting_state_pda != *voting_state.key || bump_state_ != bump_state {
+            return Err(JanecekError::PdaMismatch.into());
         }
 
         // check rent exempt
@@ -289,22 +289,26 @@ impl Processor {
 
         let mut state_state = VotingState::unpack_unchecked(&voting_state.data.borrow_mut())?;
 
+        // double check if accounts aren`t already initialized
         if owner_state.is_initialized() || state_state.is_initialized() {
             return Err(JanecekError::AccountAlreadyInitialized.into());
         }
 
+        // update owner state
         owner_state.is_initialized = true;
         owner_state.initializer = *initiator.key;
         owner_state.voting_state = *voting_state.key;
         owner_state.bump = bump_owner;
 
+        // update voting state
         state_state.is_initialized = true;
         state_state.voting_owner = *initiator.key;
 
-        let clock: Clock = Clock::get().unwrap();
+        let clock: Clock = Clock::get()?;
+
         state_state.voting_started = clock.unix_timestamp;
 
-        match clock.unix_timestamp.checked_add(7 * 24 * 60 * 60) {
+        match state_state.voting_started.checked_add(7 * 24 * 60 * 60) {
             Some(sucess) => state_state.voting_ends = sucess,
             None => return Err(JanecekError::AdditionOverflow.into()),
         }
@@ -450,16 +454,19 @@ impl Processor {
             return Err(JanecekError::AccountNotInitialized.into());
         }
 
-        if state_state.voting_owner != owner_state.initializer {
+        if (state_state.voting_owner != owner_state.initializer)
+            || (owner_state.voting_state != *pda_state.key)
+        {
             return Err(JanecekError::VotingOwnerMismatch.into());
         }
 
-        // maybe try to perform checked sub and comare to 0
-        let clock: Clock = Clock::get().unwrap();
+        // check if voting ended
+        let clock: Clock = Clock::get()?;
         if clock.unix_timestamp > state_state.voting_ends {
             return Err(JanecekError::VotingEnded.into());
         }
 
+        // create party state
         party_state.is_initialized = true;
         party_state.author = *author.key;
         party_state.voting_state = *pda_state.key;
@@ -628,16 +635,18 @@ impl Processor {
         }
 
         // check if owner and state correspond to each other
-        if state_state.voting_owner != owner_state.initializer {
+        if (state_state.voting_owner != owner_state.initializer)
+            || (owner_state.voting_state != *pda_state.key)
+        {
             return Err(JanecekError::VotingOwnerMismatch.into());
         }
 
-        // maybe try to perform checked sub and comare to 0
         let clock: Clock = Clock::get().unwrap();
         if clock.unix_timestamp > state_state.voting_ends {
             return Err(JanecekError::VotingEnded.into());
         }
 
+        // update voter data
         voter_state.is_initialized = true;
         voter_state.author = *author.key;
         voter_state.voting_state = *pda_state.key;
@@ -751,7 +760,9 @@ impl Processor {
         }
 
         // check if owner and state correspond to each other
-        if state_state.voting_owner != owner_state.initializer {
+        if (state_state.voting_owner != owner_state.initializer)
+            || (owner_state.voting_state != *pda_state.key)
+        {
             return Err(JanecekError::VotingOwnerMismatch.into());
         }
 
@@ -765,14 +776,16 @@ impl Processor {
             return Err(JanecekError::VotingStateMismatch.into());
         }
 
-        // maybe try to perform checked sub and compare to 0
         let clock: Clock = Clock::get().unwrap();
         if clock.unix_timestamp > state_state.voting_ends {
             return Err(JanecekError::VotingEnded.into());
         }
 
         if voter_state.num_votes == 3 {
-            voter_state.num_votes -= 1;
+            match voter_state.num_votes.checked_sub(1) {
+                Some(sucess) => voter_state.num_votes = sucess,
+                None => return Err(JanecekError::SubtractionOverflow.into()),
+            }
             voter_state.pos1 = *pda_party.key;
 
             match party_state.votes.checked_add(1) {
@@ -788,7 +801,10 @@ impl Processor {
             if voter_state.pos1 == *pda_party.key {
                 return Err(JanecekError::NoBothPosSameParty.into());
             } else {
-                voter_state.num_votes -= 1;
+                match voter_state.num_votes.checked_sub(1) {
+                    Some(sucess) => voter_state.num_votes = sucess,
+                    None => return Err(JanecekError::SubtractionOverflow.into()),
+                }
                 voter_state.pos2 = *pda_party.key;
 
                 match party_state.votes.checked_add(1) {
@@ -930,7 +946,10 @@ impl Processor {
         }
 
         if voter_state.num_votes == 1 {
-            voter_state.num_votes -= 1;
+            match voter_state.num_votes.checked_sub(1) {
+                Some(sucess) => voter_state.num_votes = sucess,
+                None => return Err(JanecekError::SubtractionOverflow.into()),
+            }
             voter_state.neg1 = *pda_party.key;
 
             match party_state.votes.checked_sub(1) {
