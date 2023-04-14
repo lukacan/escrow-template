@@ -53,6 +53,10 @@
 - Perform **program checks in native programs** by simply comparing the public key of the passed-in program to the progam you expected.✅
 - Using **find_program_address** ensures that the highest valid bump, or canonical bump, is used for the derivation, thus creating a deterministic way to find an address given specific seeds.✅
 - Using the same PDA for multiple authority domains opens your program up to the possibility of users accessing data and funds that don't belong to them
+- Check writable accounts.
+- Check rent exempt.
+- Check bumps vs saved bumps.
+- Double check correct program ID.
 
 
 
