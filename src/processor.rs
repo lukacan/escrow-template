@@ -207,19 +207,19 @@ impl Processor {
             )?;
         }
 
-        // check owners, (should be set above)
+        // SIGNER CHECK
+        if !author.is_signer {
+            return Err(JanecekError::AccountNotSigner.into());
+        }
+
+        // PROGRAM OWNERS CHECK
         if *pda_owner.owner != id() || *pda_state.owner != id() {
             return Err(JanecekError::AccountOwnerMismatch.into());
         }
 
-        // check system program id (if incorrect invoke_signed should not pass)
+        // SYSTEM PROGRAM ID
         if *system_program.key != solana_program::system_program::id() {
             return Err(JanecekError::SystemIDMismatch.into());
-        }
-
-        // check if initiator is signer
-        if !author.is_signer {
-            return Err(JanecekError::AccountNotSigner.into());
         }
 
         // writable as payer
@@ -254,14 +254,14 @@ impl Processor {
 
         let mut state_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
 
-        // double check if accounts aren`t already initialized
+        // CHECK ALREADY INITIALIZED ACCOUNTS
         if owner_state.is_initialized() || state_state.is_initialized() {
             return Err(JanecekError::AccountAlreadyInitialized.into());
         }
 
         // update owner state
         owner_state.is_initialized = true;
-        owner_state.author = *author.key;
+        owner_state.owner = *author.key;
         owner_state.voting_state = *pda_state.key;
         owner_state.bump = bump_owner;
 
@@ -371,24 +371,24 @@ impl Processor {
             )?;
         }
 
+        // SIGNER CHECK
+        if !owner.is_signer || !author_party.is_signer {
+            return Err(JanecekError::AccountNotSigner.into());
+        }
+
+        // PROGRAM OWNERS CHECK
         if *pda_owner.owner != id() || *pda_state.owner != id() || *pda_party.owner != id() {
             return Err(JanecekError::AccountOwnerMismatch.into());
         }
 
+        // SYSTEM PROGRAM ID
         if *system_program.key != solana_program::system_program::id() {
             return Err(JanecekError::SystemIDMismatch.into());
         }
 
-        // check signers
-        if !owner.is_signer {
-            return Err(JanecekError::AccountNotSigner.into());
-        }
-        if !author_party.is_signer {
-            return Err(JanecekError::AccountNotSigner.into());
-        }
-
         // Any account that may be mutated by the program during execution, either its
         // data or metadata such as held lamports, must be writable.
+        // MUTABLES CHECK
         if !pda_party.is_writable {
             return Err(JanecekError::AccountNotmutable.into());
         }
@@ -407,7 +407,7 @@ impl Processor {
             return Err(JanecekError::PdaMismatch.into());
         }
 
-        // check rent exempt
+        // CHECK RENT EXEMPT
         if !rent.is_exempt(pda_party.lamports(), pda_party.try_data_len()?) {
             return Err(JanecekError::ConstraintRentExempt.into());
         }
@@ -415,36 +415,30 @@ impl Processor {
         // deserialize data and check if both are initialized and if owner match
         let owner_state = VotingOwner::unpack_unchecked(&pda_owner.data.borrow_mut())?;
 
-        let state_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
+        let voting_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
 
         let mut party_state = Party::unpack_unchecked(&pda_party.data.borrow_mut())?;
 
+        // CHECK ALREADY INITIALIZED ACCOUNTS
         if party_state.is_initialized() {
             return Err(JanecekError::AccountAlreadyInitialized.into());
         }
-
-        if !owner_state.is_initialized() || !state_state.is_initialized() {
+        // CHECK NOT YET INITIALIZED ACCOUNTS
+        if !owner_state.is_initialized() || !voting_state.is_initialized() {
             return Err(JanecekError::AccountNotInitialized.into());
         }
 
-        // double check voting owner and initiator
-        if *owner.key != owner_state.author {
-            return Err(JanecekError::VotingOwnerMismatch.into());
-        }
-
-        // double check voting owner and initiator
-        if state_state.voting_owner != *pda_owner.key {
-            return Err(JanecekError::VotingOwnerMismatch.into());
-        }
-
-        // check if state corresponds
-        if owner_state.voting_state != *pda_state.key {
-            return Err(JanecekError::VotingStateMismatch.into());
-        }
+        Self::check_add_context(
+            &owner_state,
+            &voting_state,
+            &pda_owner.key,
+            &pda_state.key,
+            &owner.key,
+        )?;
 
         // check if voting ended
         let clock: Clock = Clock::get()?;
-        if clock.unix_timestamp > state_state.voting_ends {
+        if clock.unix_timestamp > voting_state.voting_ends {
             return Err(JanecekError::VotingEnded.into());
         }
 
@@ -462,7 +456,6 @@ impl Processor {
         Ok(())
     }
 
-    #[allow(dead_code)]
     fn process_create_voter(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -565,16 +558,21 @@ impl Processor {
             )?;
         }
 
+        // SIGNER CHECK
+        if !author.is_signer {
+            return Err(JanecekError::AccountNotSigner.into());
+        }
+        // PROGRAM OWNERS CHECK
+        if *pda_owner.owner != id() || *pda_state.owner != id() || *pda_voter.owner != id() {
+            return Err(JanecekError::AccountOwnerMismatch.into());
+        }
+
+        // SYSTEM PROGRAM ID
         if *system_program.key != solana_program::system_program::id() {
             return Err(JanecekError::SystemIDMismatch.into());
         }
 
-        // everyone can add yourself as voter, so owner dont need to sign
-        if !author.is_signer {
-            return Err(JanecekError::AccountNotSigner.into());
-        }
-
-        // check mutables
+        // MUTABLES CHECK
         if !pda_voter.is_writable {
             return Err(JanecekError::AccountNotmutable.into());
         }
@@ -593,7 +591,7 @@ impl Processor {
             return Err(JanecekError::PdaMismatch.into());
         }
 
-        // check rent exempt
+        // CHECK RENT EXEMPT
         if !rent.is_exempt(pda_voter.lamports(), pda_voter.try_data_len()?) {
             return Err(JanecekError::ConstraintRentExempt.into());
         }
@@ -601,39 +599,29 @@ impl Processor {
         // deserialize data and check if both are initialized and if owner match
         let owner_state = VotingOwner::unpack_unchecked(&pda_owner.data.borrow_mut())?;
 
-        let state_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
+        let voting_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
 
         let mut voter_state = Voter::unpack_unchecked(&pda_voter.data.borrow_mut())?;
 
-        // check if voter initialized already
+        // CHECK ALREADY INITIALIZED ACCOUNTS
         if voter_state.is_initialized() {
             return Err(JanecekError::AccountAlreadyInitialized.into());
         }
 
-        // check if state and owner are initialized
-        if !owner_state.is_initialized() || !state_state.is_initialized() {
+        // CHECK NOT YET INITIALIZED ACCOUNTS
+        if !owner_state.is_initialized() || !voting_state.is_initialized() {
             return Err(JanecekError::AccountNotInitialized.into());
         }
 
-        // double check voting owner and initiator
-        if *owner.key != owner_state.author {
-            return Err(JanecekError::VotingOwnerMismatch.into());
-        }
+        Self::check_add_context(
+            &owner_state,
+            &voting_state,
+            &pda_owner.key,
+            &pda_state.key,
+            &owner.key,
+        )?;
 
-        // double check voting owner and initiator
-        if state_state.voting_owner != *pda_owner.key {
-            return Err(JanecekError::VotingOwnerMismatch.into());
-        }
-
-        // check if state corresponds
-        if owner_state.voting_state != *pda_state.key {
-            return Err(JanecekError::VotingStateMismatch.into());
-        }
-
-        let clock: Clock = Clock::get().unwrap();
-        if clock.unix_timestamp > state_state.voting_ends {
-            return Err(JanecekError::VotingEnded.into());
-        }
+        Self::check_voting_end(&voting_state)?;
 
         // update voter data
         voter_state.is_initialized = true;
@@ -646,7 +634,6 @@ impl Processor {
 
         Ok(())
     }
-    #[allow(dead_code)]
     fn process_vote_positive(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -654,14 +641,6 @@ impl Processor {
     ) -> ProgramResult {
         let ix = instruction::Vote::deserialize(&mut &ix_data[..])
             .map_err(|_| JanecekError::InstructionDidNotDeserialize)?;
-
-        let instruction::Vote {
-            bump_owner,
-            bump_state,
-            bump_voter,
-            bump_party,
-            name,
-        } = ix;
 
         let accounts_iter = &mut accounts.iter();
 
@@ -677,45 +656,7 @@ impl Processor {
 
         let pda_party = next_account_info(accounts_iter)?;
 
-        let (pda_owner_, bump_owner_) =
-            Pubkey::find_program_address(&[b"voting_owner", owner.key.as_ref()], program_id);
-
-        let (pda_state_, bump_state_) =
-            Pubkey::find_program_address(&[b"voting_state", pda_owner_.as_ref()], program_id);
-
-        let (pda_voter_, bump_voter_) = Pubkey::find_program_address(
-            &[b"new_voter", author.key.as_ref(), pda_state_.as_ref()],
-            program_id,
-        );
-        let (pda_party_, bump_party_) =
-            Pubkey::find_program_address(&[name.as_bytes(), pda_state_.as_ref()], program_id);
-
-        // check if voter signed
-        if !author.is_signer {
-            return Err(JanecekError::AccountNotSigner.into());
-        }
-
-        // check mutables
-        if !pda_voter.is_writable {
-            return Err(JanecekError::AccountNotmutable.into());
-        }
-        if !pda_party.is_writable {
-            return Err(JanecekError::AccountNotmutable.into());
-        }
-
-        // check PDA correctness
-        if pda_owner_ != *pda_owner.key || bump_owner_ != bump_owner {
-            return Err(JanecekError::PdaMismatch.into());
-        }
-        if pda_state_ != *pda_state.key || bump_state_ != bump_state {
-            return Err(JanecekError::PdaMismatch.into());
-        }
-        if pda_voter_ != *pda_voter.key || bump_voter_ != bump_voter {
-            return Err(JanecekError::PdaMismatch.into());
-        }
-        if pda_party_ != *pda_party.key || bump_party_ != bump_party {
-            return Err(JanecekError::PdaMismatch.into());
-        }
+        Self::check_vote_accounts(&program_id, &accounts, &ix)?;
 
         let mut voter_state = Voter::unpack_unchecked(&pda_voter.data.borrow_mut())?;
 
@@ -723,45 +664,20 @@ impl Processor {
 
         let owner_state = VotingOwner::unpack_unchecked(&pda_owner.data.borrow_mut())?;
 
-        let state_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
+        let voting_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
 
-        // check initialized accounts
-        if !owner_state.is_initialized()
-            || !state_state.is_initialized()
-            || !party_state.is_initialized()
-            || !voter_state.is_initialized()
-        {
-            return Err(JanecekError::AccountNotInitialized.into());
-        }
+        Self::check_vote_context(
+            &owner_state,
+            &voting_state,
+            &party_state,
+            &voter_state,
+            &author.key,
+            &owner.key,
+            &pda_owner.key,
+            &pda_state.key,
+        )?;
 
-        // double check voter and his author
-        if *author.key != voter_state.author {
-            return Err(JanecekError::VoterMismatch.into());
-        }
-
-        // double check voting owner and initiator
-        if *owner.key != owner_state.author {
-            return Err(JanecekError::VotingOwnerMismatch.into());
-        }
-
-        // check if owner corresponds
-        if state_state.voting_owner != *pda_owner.key {
-            return Err(JanecekError::VotingOwnerMismatch.into());
-        }
-        // check if state corresponds
-        if owner_state.voting_state != *pda_state.key {
-            return Err(JanecekError::VotingStateMismatch.into());
-        }
-
-        // check if voter exists in this voting state
-        if *pda_state.key != voter_state.voting_state {
-            return Err(JanecekError::VotingStateMismatch.into());
-        }
-
-        let clock: Clock = Clock::get().unwrap();
-        if clock.unix_timestamp > state_state.voting_ends {
-            return Err(JanecekError::VotingEnded.into());
-        }
+        Self::check_voting_end(&voting_state)?;
 
         match voter_state.num_votes {
             0 => {
@@ -810,7 +726,6 @@ impl Processor {
             }
         }
     }
-    #[allow(dead_code)]
 
     fn process_vote_negative(
         program_id: &Pubkey,
@@ -819,14 +734,6 @@ impl Processor {
     ) -> ProgramResult {
         let ix = instruction::Vote::deserialize(&mut &ix_data[..])
             .map_err(|_| JanecekError::InstructionDidNotDeserialize)?;
-
-        let instruction::Vote {
-            bump_owner,
-            bump_state,
-            bump_voter,
-            bump_party,
-            name,
-        } = ix;
 
         let accounts_iter = &mut accounts.iter();
 
@@ -842,45 +749,7 @@ impl Processor {
 
         let pda_party = next_account_info(accounts_iter)?;
 
-        let (pda_owner_, bump_owner_) =
-            Pubkey::find_program_address(&[b"voting_owner", owner.key.as_ref()], program_id);
-
-        let (pda_state_, bump_state_) =
-            Pubkey::find_program_address(&[b"voting_state", pda_owner_.as_ref()], program_id);
-
-        let (pda_voter_, bump_voter_) = Pubkey::find_program_address(
-            &[b"new_voter", author.key.as_ref(), pda_state_.as_ref()],
-            program_id,
-        );
-        let (pda_party_, bump_party_) =
-            Pubkey::find_program_address(&[name.as_bytes(), pda_state_.as_ref()], program_id);
-
-        // check if voter signed
-        if !author.is_signer {
-            return Err(JanecekError::AccountNotSigner.into());
-        }
-
-        // check mutables
-        if !pda_voter.is_writable {
-            return Err(JanecekError::AccountNotmutable.into());
-        }
-        if !pda_party.is_writable {
-            return Err(JanecekError::AccountNotmutable.into());
-        }
-
-        // check PDA correctness
-        if pda_owner_ != *pda_owner.key || bump_owner_ != bump_owner {
-            return Err(JanecekError::PdaMismatch.into());
-        }
-        if pda_state_ != *pda_state.key || bump_state_ != bump_state {
-            return Err(JanecekError::PdaMismatch.into());
-        }
-        if pda_voter_ != *pda_voter.key || bump_voter_ != bump_voter {
-            return Err(JanecekError::PdaMismatch.into());
-        }
-        if pda_party_ != *pda_party.key || bump_party_ != bump_party {
-            return Err(JanecekError::PdaMismatch.into());
-        }
+        Self::check_vote_accounts(&program_id, &accounts, &ix)?;
 
         let mut voter_state = Voter::unpack_unchecked(&pda_voter.data.borrow_mut())?;
 
@@ -888,46 +757,20 @@ impl Processor {
 
         let owner_state = VotingOwner::unpack_unchecked(&pda_owner.data.borrow_mut())?;
 
-        let state_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
+        let voting_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
 
-        // check initialized accounts
-        if !owner_state.is_initialized()
-            || !state_state.is_initialized()
-            || !party_state.is_initialized()
-            || !voter_state.is_initialized()
-        {
-            return Err(JanecekError::AccountNotInitialized.into());
-        }
+        Self::check_vote_context(
+            &owner_state,
+            &voting_state,
+            &party_state,
+            &voter_state,
+            &author.key,
+            &owner.key,
+            &pda_owner.key,
+            &pda_state.key,
+        )?;
 
-        // double check voter and his author
-        if *author.key != voter_state.author {
-            return Err(JanecekError::VoterMismatch.into());
-        }
-
-        // double check voting owner and initiator
-        if *owner.key != owner_state.author {
-            return Err(JanecekError::VotingOwnerMismatch.into());
-        }
-
-        // check if owner corresponds
-        if state_state.voting_owner != *pda_owner.key {
-            return Err(JanecekError::VotingOwnerMismatch.into());
-        }
-        // check if state corresponds
-        if owner_state.voting_state != *pda_state.key {
-            return Err(JanecekError::VotingStateMismatch.into());
-        }
-
-        // check if voter exists in this voting state
-        if *pda_state.key != voter_state.voting_state {
-            return Err(JanecekError::VotingStateMismatch.into());
-        }
-
-        // maybe try to perform checked sub and compare to 0
-        let clock: Clock = Clock::get().unwrap();
-        if clock.unix_timestamp > state_state.voting_ends {
-            return Err(JanecekError::VotingEnded.into());
-        }
+        Self::check_voting_end(&voting_state)?;
 
         match voter_state.num_votes {
             0 => {
@@ -960,5 +803,155 @@ impl Processor {
                 return Err(JanecekError::VotesOutOfRange.into());
             }
         }
+    }
+    fn check_voting_end(voting_state: &VotingState) -> ProgramResult {
+        let clock: Clock = Clock::get().unwrap();
+        if clock.unix_timestamp > voting_state.voting_ends {
+            return Err(JanecekError::VotingEnded.into());
+        }
+        Ok(())
+    }
+    fn check_vote_accounts(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        ix_vote: &instruction::Vote,
+    ) -> ProgramResult {
+        let accounts_iter = &mut accounts.iter();
+
+        let author = next_account_info(accounts_iter)?;
+
+        let owner = next_account_info(accounts_iter)?;
+
+        let pda_owner = next_account_info(accounts_iter)?;
+
+        let pda_state = next_account_info(accounts_iter)?;
+
+        let pda_voter = next_account_info(accounts_iter)?;
+
+        let pda_party = next_account_info(accounts_iter)?;
+
+        let (pda_owner_, bump_owner_) =
+            Pubkey::find_program_address(&[b"voting_owner", owner.key.as_ref()], program_id);
+
+        let (pda_state_, bump_state_) =
+            Pubkey::find_program_address(&[b"voting_state", pda_owner_.as_ref()], program_id);
+
+        let (pda_voter_, bump_voter_) = Pubkey::find_program_address(
+            &[b"new_voter", author.key.as_ref(), pda_state_.as_ref()],
+            program_id,
+        );
+        let (pda_party_, bump_party_) = Pubkey::find_program_address(
+            &[ix_vote.name.as_bytes(), pda_state_.as_ref()],
+            program_id,
+        );
+
+        // SIGNER CHECK
+        if !author.is_signer {
+            return Err(JanecekError::AccountNotSigner.into());
+        }
+        // PROGRAM OWNERS CHECK
+        if *pda_owner.owner != id()
+            || *pda_state.owner != id()
+            || *pda_party.owner != id()
+            || *pda_voter.owner != id()
+        {
+            return Err(JanecekError::AccountOwnerMismatch.into());
+        }
+
+        // MUTABLES CHECK
+        if !pda_voter.is_writable {
+            return Err(JanecekError::AccountNotmutable.into());
+        }
+        if !pda_party.is_writable {
+            return Err(JanecekError::AccountNotmutable.into());
+        }
+        if !author.is_writable {
+            return Err(JanecekError::AccountNotmutable.into());
+        }
+
+        // check PDA correctness
+        if pda_owner_ != *pda_owner.key || bump_owner_ != ix_vote.bump_owner {
+            return Err(JanecekError::PdaMismatch.into());
+        }
+        if pda_state_ != *pda_state.key || bump_state_ != ix_vote.bump_state {
+            return Err(JanecekError::PdaMismatch.into());
+        }
+        if pda_voter_ != *pda_voter.key || bump_voter_ != ix_vote.bump_voter {
+            return Err(JanecekError::PdaMismatch.into());
+        }
+        if pda_party_ != *pda_party.key || bump_party_ != ix_vote.bump_party {
+            return Err(JanecekError::PdaMismatch.into());
+        }
+        Ok(())
+    }
+    fn check_add_context(
+        owner_state: &VotingOwner,
+        voting_state: &VotingState,
+        pda_owner: &Pubkey,
+        pda_state: &Pubkey,
+        owner: &Pubkey,
+    ) -> ProgramResult {
+        // double check voting owner and initiator
+        if *owner != owner_state.owner {
+            return Err(JanecekError::VotingOwnerMismatch.into());
+        }
+
+        // double check voting owner and initiator
+        if voting_state.voting_owner != *pda_owner {
+            return Err(JanecekError::VotingOwnerMismatch.into());
+        }
+
+        // check if state corresponds
+        if owner_state.voting_state != *pda_state {
+            return Err(JanecekError::VotingStateMismatch.into());
+        }
+        Ok(())
+    }
+    fn check_vote_context(
+        owner_state: &VotingOwner,
+        voting_state: &VotingState,
+        party_state: &Party,
+        voter_state: &Voter,
+        author: &Pubkey,
+        owner: &Pubkey,
+        pda_owner: &Pubkey,
+        pda_state: &Pubkey,
+    ) -> ProgramResult {
+        // CHECK NOT YET INITIALIZED ACCOUNTS
+        if !owner_state.is_initialized()
+            || !voting_state.is_initialized()
+            || !party_state.is_initialized()
+            || !voter_state.is_initialized()
+        {
+            return Err(JanecekError::AccountNotInitialized.into());
+        }
+
+        // check if author corresponds to voter
+        if *author != voter_state.author {
+            return Err(JanecekError::VoterMismatch.into());
+        }
+
+        // check if owner corresponds to the voting owner
+        if *owner != owner_state.owner {
+            return Err(JanecekError::VotingOwnerMismatch.into());
+        }
+
+        // check if voting state corresponds to the voting owner
+        if voting_state.voting_owner != *pda_owner {
+            return Err(JanecekError::VotingOwnerMismatch.into());
+        }
+        // // check if voting owner corresponds to the voting state
+        if owner_state.voting_state != *pda_state {
+            return Err(JanecekError::VotingStateMismatch.into());
+        }
+        // check if voter correspoinds to this voting state
+        if *pda_state != voter_state.voting_state {
+            return Err(JanecekError::VotingStateMismatch.into());
+        }
+        // check if party correspoinds to this voting state
+        if *pda_state != party_state.voting_state {
+            return Err(JanecekError::VotingStateMismatch.into());
+        }
+        Ok(())
     }
 }
