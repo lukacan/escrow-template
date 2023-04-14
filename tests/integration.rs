@@ -179,13 +179,12 @@ fn vote_positive(
         &[Instruction {
             program_id: id(),
             accounts: vec![
-                AccountMeta::new(voter.pubkey(), true), // persone that wants to be voter
+                AccountMeta::new(voter.pubkey(), true), // person that wants to be voter
                 AccountMeta::new_readonly(*initializer, false), // owner
                 AccountMeta::new_readonly(pda_owner, false), // voting owner
                 AccountMeta::new_readonly(pda_state, false), // voting state
                 AccountMeta::new(pda_voter, false),     // voter
                 AccountMeta::new(pda_party, false),     // party
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
             ],
             data: instruction_data,
         }],
@@ -253,7 +252,7 @@ fn vote_negative(
     rpc_client.send_and_confirm_transaction(&transaction)
 }
 #[test]
-fn test_validator_transaction() {
+fn test_basic() {
     solana_logger::setup_with_default("solana_program_runtime=debug");
 
     let mut testvalgen = TestValidatorGenesis::default();
@@ -285,7 +284,6 @@ fn test_validator_transaction() {
     );
     testvalgen.add_account(bob.pubkey(), account);
 
-
     let diana = Keypair::new();
 
     let account = AccountSharedData::new(
@@ -294,7 +292,6 @@ fn test_validator_transaction() {
         &solana_program::system_program::id(),
     );
     testvalgen.add_account(diana.pubkey(), account);
-
 
     let (test_validator, _payer) = testvalgen
         .add_program("target/deploy/bpf_program_template", id())
@@ -305,7 +302,6 @@ fn test_validator_transaction() {
 
     let alice_party: String = String::from("Alice Party");
     let diana_party: String = String::from("Diana Party");
-
 
     assert_matches!(initialize(&rpc_client, &initializer), Ok(_));
 

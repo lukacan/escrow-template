@@ -273,7 +273,7 @@ pub mod state {
 
     pub struct VotingOwner {
         pub is_initialized: bool,
-        pub initializer: Pubkey,
+        pub author: Pubkey,
         pub voting_state: Pubkey,
         pub bump: u8,
     }
@@ -298,13 +298,13 @@ pub mod state {
 
             let VotingOwner {
                 is_initialized,
-                initializer,
+                author,
                 voting_state,
                 bump,
             } = self;
 
             is_initialized_dst[0] = *is_initialized as u8;
-            initializer_dst.copy_from_slice(initializer.as_ref());
+            initializer_dst.copy_from_slice(author.as_ref());
             voting_state_dst.copy_from_slice(voting_state.as_ref());
             bump_dst[0] = *bump;
         }
@@ -323,7 +323,7 @@ pub mod state {
 
             Ok(VotingOwner {
                 is_initialized,
-                initializer: Pubkey::new_from_array(*initializer),
+                author: Pubkey::new_from_array(*initializer),
                 voting_state: Pubkey::new_from_array(*voting_state),
                 bump: bump,
             })

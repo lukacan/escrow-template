@@ -92,43 +92,35 @@ impl Processor {
 
         let accounts_iter = &mut accounts.iter();
 
-        let initiator = next_account_info(accounts_iter)?;
+        let author = next_account_info(accounts_iter)?;
 
-        let voting_owner = next_account_info(accounts_iter)?;
+        let pda_owner = next_account_info(accounts_iter)?;
 
-        let voting_state = next_account_info(accounts_iter)?;
+        let pda_state = next_account_info(accounts_iter)?;
 
         let system_program = next_account_info(accounts_iter)?;
 
-        let (voting_owner_pda, bump_owner_) =
-            Pubkey::find_program_address(&[b"voting_owner", initiator.key.as_ref()], program_id);
+        let (pda_owner_, bump_owner_) =
+            Pubkey::find_program_address(&[b"voting_owner", author.key.as_ref()], program_id);
 
-        let (voting_state_pda, bump_state_) =
-            Pubkey::find_program_address(&[b"voting_state", voting_owner.key.as_ref()], program_id);
+        let (pda_state_, bump_state_) =
+            Pubkey::find_program_address(&[b"voting_state", pda_owner.key.as_ref()], program_id);
 
         let rent = Rent::get()?;
-        let current_lamports = voting_owner.lamports();
+        let current_lamports = pda_owner.lamports();
         let lamports_needed = rent.minimum_balance(VotingOwner::LEN);
 
         if current_lamports == 0 {
             program::invoke_signed(
                 &system_instruction::create_account(
-                    initiator.key,
-                    voting_owner.key,
+                    author.key,
+                    pda_owner.key,
                     lamports_needed,
                     VotingOwner::LEN as u64,
                     program_id,
                 ),
-                &[
-                    system_program.clone(),
-                    initiator.clone(),
-                    voting_owner.clone(),
-                ],
-                &[&[
-                    b"voting_owner".as_ref(),
-                    initiator.key.as_ref(),
-                    &[bump_owner],
-                ]],
+                &[author.clone(), pda_owner.clone()],
+                &[&[b"voting_owner".as_ref(), author.key.as_ref(), &[bump_owner]]],
             )?;
         } else {
             let required_lamports = rent
@@ -138,65 +130,41 @@ impl Processor {
 
             if required_lamports > 0 {
                 program::invoke_signed(
-                    &system_instruction::transfer(
-                        initiator.key,
-                        voting_owner.key,
-                        required_lamports,
-                    ),
-                    &[
-                        system_program.clone(),
-                        initiator.clone(),
-                        voting_owner.clone(),
-                    ],
-                    &[&[
-                        b"voting_owner".as_ref(),
-                        initiator.key.as_ref(),
-                        &[bump_owner],
-                    ]],
+                    &system_instruction::transfer(author.key, &pda_owner.key, required_lamports),
+                    &[author.clone(), pda_owner.clone()],
+                    &[&[b"voting_owner".as_ref(), author.key.as_ref(), &[bump_owner]]],
                 )?;
             }
 
             program::invoke_signed(
-                &system_instruction::allocate(voting_owner.key, Party::LEN as u64),
-                &[system_program.clone(), voting_owner.clone()],
-                &[&[
-                    b"voting_owner".as_ref(),
-                    initiator.key.as_ref(),
-                    &[bump_owner],
-                ]],
+                &system_instruction::allocate(pda_owner.key, Party::LEN as u64),
+                &[pda_owner.clone()],
+                &[&[b"voting_owner".as_ref(), author.key.as_ref(), &[bump_owner]]],
             )?;
 
             program::invoke_signed(
-                &system_instruction::assign(voting_owner.key, program_id),
-                &[system_program.clone(), voting_owner.clone()],
-                &[&[
-                    b"voting_owner".as_ref(),
-                    initiator.key.as_ref(),
-                    &[bump_owner],
-                ]],
+                &system_instruction::assign(pda_owner.key, program_id),
+                &[pda_owner.clone()],
+                &[&[b"voting_owner".as_ref(), author.key.as_ref(), &[bump_owner]]],
             )?;
         }
 
-        let current_lamports = voting_state.lamports();
+        let current_lamports = pda_state.lamports();
         let lamports_needed = rent.minimum_balance(VotingState::LEN);
 
         if current_lamports == 0 {
             program::invoke_signed(
                 &system_instruction::create_account(
-                    initiator.key,
-                    voting_state.key,
+                    author.key,
+                    pda_state.key,
                     lamports_needed,
                     VotingState::LEN as u64,
                     program_id,
                 ),
-                &[
-                    system_program.clone(),
-                    initiator.clone(),
-                    voting_state.clone(),
-                ],
+                &[author.clone(), pda_state.clone()],
                 &[&[
                     b"voting_state".as_ref(),
-                    voting_owner.key.as_ref(),
+                    pda_owner.key.as_ref(),
                     &[bump_state],
                 ]],
             )?;
@@ -208,86 +176,83 @@ impl Processor {
 
             if required_lamports > 0 {
                 program::invoke_signed(
-                    &system_instruction::transfer(
-                        initiator.key,
-                        voting_state.key,
-                        required_lamports,
-                    ),
-                    &[
-                        system_program.clone(),
-                        initiator.clone(),
-                        voting_state.clone(),
-                    ],
+                    &system_instruction::transfer(author.key, pda_state.key, required_lamports),
+                    &[author.clone(), pda_state.clone()],
                     &[&[
                         b"voting_state".as_ref(),
-                        voting_owner.key.as_ref(),
+                        pda_owner.key.as_ref(),
                         &[bump_state],
                     ]],
                 )?;
             }
 
             program::invoke_signed(
-                &system_instruction::allocate(voting_state.key, VotingState::LEN as u64),
-                &[system_program.clone(), voting_state.clone()],
+                &system_instruction::allocate(pda_state.key, VotingState::LEN as u64),
+                &[pda_state.clone()],
                 &[&[
                     b"voting_state".as_ref(),
-                    voting_owner.key.as_ref(),
+                    pda_owner.key.as_ref(),
                     &[bump_state],
                 ]],
             )?;
 
             program::invoke_signed(
-                &system_instruction::assign(voting_state.key, program_id),
-                &[system_program.clone(), voting_state.clone()],
+                &system_instruction::assign(pda_state.key, program_id),
+                &[pda_state.clone()],
                 &[&[
                     b"voting_state".as_ref(),
-                    voting_owner.key.as_ref(),
+                    pda_owner.key.as_ref(),
                     &[bump_state],
                 ]],
             )?;
         }
 
+        // check owners, (should be set above)
+        if *pda_owner.owner != id() || *pda_state.owner != id() {
+            return Err(JanecekError::AccountOwnerMismatch.into());
+        }
+
+        // check system program id (if incorrect invoke_signed should not pass)
         if *system_program.key != solana_program::system_program::id() {
             return Err(JanecekError::SystemIDMismatch.into());
         }
 
         // check if initiator is signer
-        if !initiator.is_signer {
+        if !author.is_signer {
             return Err(JanecekError::AccountNotSigner.into());
         }
 
-        // check mutables
-        if !initiator.is_writable {
+        // writable as payer
+        if !author.is_writable {
             return Err(JanecekError::AccountNotmutable.into());
         }
-        if !voting_state.is_writable {
+        if !pda_state.is_writable {
             return Err(JanecekError::AccountNotmutable.into());
         }
-        if !voting_owner.is_writable {
+        if !pda_owner.is_writable {
             return Err(JanecekError::AccountNotmutable.into());
         }
 
         // check provided PDAs and bumps match
-        if voting_owner_pda != *voting_owner.key || bump_owner_ != bump_owner {
+        if pda_owner_ != *pda_owner.key || bump_owner_ != bump_owner {
             return Err(JanecekError::PdaMismatch.into());
         }
-        if voting_state_pda != *voting_state.key || bump_state_ != bump_state {
+        if pda_state_ != *pda_state.key || bump_state_ != bump_state {
             return Err(JanecekError::PdaMismatch.into());
         }
 
-        // check rent exempt
-        if !rent.is_exempt(voting_state.lamports(), voting_state.try_data_len()?) {
+        // double check rent exempt
+        if !rent.is_exempt(pda_state.lamports(), pda_state.try_data_len()?) {
             return Err(JanecekError::ConstraintRentExempt.into());
         }
-        if !rent.is_exempt(voting_owner.lamports(), voting_owner.try_data_len()?) {
+        if !rent.is_exempt(pda_owner.lamports(), pda_owner.try_data_len()?) {
             return Err(JanecekError::ConstraintRentExempt.into());
         }
 
         // update owner and state
+        let mut owner_state = VotingOwner::unpack_unchecked(&pda_owner.data.borrow_mut())?;
 
-        let mut owner_state = VotingOwner::unpack_unchecked(&voting_owner.data.borrow_mut())?;
-
-        let mut state_state = VotingState::unpack_unchecked(&voting_state.data.borrow_mut())?;
+        let mut state_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
 
         // double check if accounts aren`t already initialized
         if owner_state.is_initialized() || state_state.is_initialized() {
@@ -296,13 +261,13 @@ impl Processor {
 
         // update owner state
         owner_state.is_initialized = true;
-        owner_state.initializer = *initiator.key;
-        owner_state.voting_state = *voting_state.key;
+        owner_state.author = *author.key;
+        owner_state.voting_state = *pda_state.key;
         owner_state.bump = bump_owner;
 
         // update voting state
         state_state.is_initialized = true;
-        state_state.voting_owner = *initiator.key;
+        state_state.voting_owner = *pda_owner.key;
 
         let clock: Clock = Clock::get()?;
 
@@ -315,8 +280,8 @@ impl Processor {
 
         state_state.bump = bump_state;
 
-        VotingOwner::pack(owner_state, &mut &mut voting_owner.data.borrow_mut()[..])?;
-        VotingState::pack(state_state, &mut &mut voting_state.data.borrow_mut()[..])?;
+        VotingOwner::pack(owner_state, &mut &mut pda_owner.data.borrow_mut()[..])?;
+        VotingState::pack(state_state, &mut &mut pda_state.data.borrow_mut()[..])?;
 
         Ok(())
     }
@@ -338,9 +303,9 @@ impl Processor {
 
         let accounts_iter = &mut accounts.iter();
 
-        let author = next_account_info(accounts_iter)?;
+        let author_party = next_account_info(accounts_iter)?;
 
-        let initiator = next_account_info(accounts_iter)?;
+        let owner = next_account_info(accounts_iter)?;
 
         let pda_owner = next_account_info(accounts_iter)?;
 
@@ -350,14 +315,14 @@ impl Processor {
 
         let system_program = next_account_info(accounts_iter)?;
 
-        let (voting_owner_pda, bump_owner_) =
-            Pubkey::find_program_address(&[b"voting_owner", initiator.key.as_ref()], program_id);
+        let (pda_owner_, bump_owner_) =
+            Pubkey::find_program_address(&[b"voting_owner", owner.key.as_ref()], program_id);
 
-        let (voting_state_pda, bump_state_) =
-            Pubkey::find_program_address(&[b"voting_state", voting_owner_pda.as_ref()], program_id);
+        let (pda_state_, bump_state_) =
+            Pubkey::find_program_address(&[b"voting_state", pda_owner_.as_ref()], program_id);
 
-        let (voting_party_pda, bump_party_) =
-            Pubkey::find_program_address(&[name.as_bytes(), voting_state_pda.as_ref()], program_id);
+        let (pda_party_, bump_party_) =
+            Pubkey::find_program_address(&[name.as_bytes(), pda_state_.as_ref()], program_id);
 
         let rent = Rent::get()?;
         let current_lamports = pda_party.lamports();
@@ -366,13 +331,13 @@ impl Processor {
         if current_lamports == 0 {
             program::invoke_signed(
                 &system_instruction::create_account(
-                    author.key,
+                    author_party.key,
                     pda_party.key,
                     lamports_needed,
                     Party::LEN as u64,
                     program_id,
                 ),
-                &[system_program.clone(), author.clone(), pda_party.clone()],
+                &[author_party.clone(), pda_party.clone()],
                 &[&[&name.as_bytes(), pda_state.key.as_ref(), &[bump_party]]],
             )?;
         } else {
@@ -383,54 +348,62 @@ impl Processor {
 
             if required_lamports > 0 {
                 program::invoke_signed(
-                    &system_instruction::transfer(author.key, pda_party.key, required_lamports),
-                    &[system_program.clone(), author.clone(), pda_party.clone()],
+                    &system_instruction::transfer(
+                        author_party.key,
+                        pda_party.key,
+                        required_lamports,
+                    ),
+                    &[author_party.clone(), pda_party.clone()],
                     &[&[&name.as_bytes(), pda_state.key.as_ref(), &[bump_party]]],
                 )?;
             }
 
             program::invoke_signed(
                 &system_instruction::allocate(pda_party.key, Party::LEN as u64),
-                &[system_program.clone(), pda_party.clone()],
+                &[pda_party.clone()],
                 &[&[&name.as_bytes(), pda_state.key.as_ref(), &[bump_party]]],
             )?;
 
             program::invoke_signed(
                 &system_instruction::assign(pda_party.key, program_id),
-                &[system_program.clone(), pda_party.clone()],
+                &[pda_party.clone()],
                 &[&[&name.as_bytes(), pda_state.key.as_ref(), &[bump_party]]],
             )?;
         }
 
-        // check system program id
+        if *pda_owner.owner != id() || *pda_state.owner != id() || *pda_party.owner != id() {
+            return Err(JanecekError::AccountOwnerMismatch.into());
+        }
+
         if *system_program.key != solana_program::system_program::id() {
             return Err(JanecekError::SystemIDMismatch.into());
         }
 
         // check signers
-        if !initiator.is_signer {
+        if !owner.is_signer {
             return Err(JanecekError::AccountNotSigner.into());
         }
-        if !author.is_signer {
+        if !author_party.is_signer {
             return Err(JanecekError::AccountNotSigner.into());
         }
 
-        // check mutables
+        // Any account that may be mutated by the program during execution, either its
+        // data or metadata such as held lamports, must be writable.
         if !pda_party.is_writable {
             return Err(JanecekError::AccountNotmutable.into());
         }
-        if !author.is_writable {
+        if !author_party.is_writable {
             return Err(JanecekError::AccountNotmutable.into());
         }
 
         // pda correctness
-        if voting_party_pda != *pda_party.key || bump_party_ != bump_party {
+        if pda_party_ != *pda_party.key || bump_party_ != bump_party {
             return Err(JanecekError::PdaMismatch.into());
         }
-        if voting_owner_pda != *pda_owner.key || bump_owner_ != bump_owner {
+        if pda_owner_ != *pda_owner.key || bump_owner_ != bump_owner {
             return Err(JanecekError::PdaMismatch.into());
         }
-        if voting_state_pda != *pda_state.key || bump_state_ != bump_state {
+        if pda_state_ != *pda_state.key || bump_state_ != bump_state {
             return Err(JanecekError::PdaMismatch.into());
         }
 
@@ -454,10 +427,19 @@ impl Processor {
             return Err(JanecekError::AccountNotInitialized.into());
         }
 
-        if (state_state.voting_owner != owner_state.initializer)
-            || (owner_state.voting_state != *pda_state.key)
-        {
+        // double check voting owner and initiator
+        if *owner.key != owner_state.author {
             return Err(JanecekError::VotingOwnerMismatch.into());
+        }
+
+        // double check voting owner and initiator
+        if state_state.voting_owner != *pda_owner.key {
+            return Err(JanecekError::VotingOwnerMismatch.into());
+        }
+
+        // check if state corresponds
+        if owner_state.voting_state != *pda_state.key {
+            return Err(JanecekError::VotingStateMismatch.into());
         }
 
         // check if voting ended
@@ -468,7 +450,7 @@ impl Processor {
 
         // create party state
         party_state.is_initialized = true;
-        party_state.author = *author.key;
+        party_state.author = *author_party.key;
         party_state.voting_state = *pda_state.key;
         party_state.created = clock.unix_timestamp;
         party_state.name = name;
@@ -499,7 +481,7 @@ impl Processor {
 
         let author = next_account_info(accounts_iter)?;
 
-        let initiator = next_account_info(accounts_iter)?;
+        let owner = next_account_info(accounts_iter)?;
 
         let pda_owner = next_account_info(accounts_iter)?;
 
@@ -509,13 +491,13 @@ impl Processor {
 
         let system_program = next_account_info(accounts_iter)?;
 
-        let (voting_owner_pda, bump_owner_) =
-            Pubkey::find_program_address(&[b"voting_owner", initiator.key.as_ref()], program_id);
+        let (pda_owner_, bump_owner_) =
+            Pubkey::find_program_address(&[b"voting_owner", owner.key.as_ref()], program_id);
 
-        let (voting_state_pda, bump_state_) =
-            Pubkey::find_program_address(&[b"voting_state", voting_owner_pda.as_ref()], program_id);
+        let (pda_state_, bump_state_) =
+            Pubkey::find_program_address(&[b"voting_state", pda_owner_.as_ref()], program_id);
 
-        let (voting_voter_pda, bump_voter_) = Pubkey::find_program_address(
+        let (pda_voter_, bump_voter_) = Pubkey::find_program_address(
             &[b"new_voter", author.key.as_ref(), pda_state.key.as_ref()],
             program_id,
         );
@@ -533,7 +515,7 @@ impl Processor {
                     Voter::LEN as u64,
                     program_id,
                 ),
-                &[system_program.clone(), author.clone(), pda_voter.clone()],
+                &[author.clone(), pda_voter.clone()],
                 &[&[
                     b"new_voter".as_ref(),
                     author.key.as_ref(),
@@ -550,7 +532,7 @@ impl Processor {
             if required_lamports > 0 {
                 program::invoke_signed(
                     &system_instruction::transfer(author.key, pda_voter.key, required_lamports),
-                    &[system_program.clone(), author.clone(), pda_voter.clone()],
+                    &[author.clone(), pda_voter.clone()],
                     &[&[
                         b"new_voter".as_ref(),
                         author.key.as_ref(),
@@ -562,7 +544,7 @@ impl Processor {
 
             program::invoke_signed(
                 &system_instruction::allocate(pda_voter.key, Voter::LEN as u64),
-                &[system_program.clone(), pda_voter.clone()],
+                &[pda_voter.clone()],
                 &[&[
                     b"new_voter".as_ref(),
                     author.key.as_ref(),
@@ -573,7 +555,7 @@ impl Processor {
 
             program::invoke_signed(
                 &system_instruction::assign(pda_voter.key, program_id),
-                &[system_program.clone(), pda_voter.clone()],
+                &[pda_voter.clone()],
                 &[&[
                     b"new_voter".as_ref(),
                     author.key.as_ref(),
@@ -583,7 +565,6 @@ impl Processor {
             )?;
         }
 
-        // check system program id
         if *system_program.key != solana_program::system_program::id() {
             return Err(JanecekError::SystemIDMismatch.into());
         }
@@ -602,13 +583,13 @@ impl Processor {
         }
 
         // pda correctness
-        if voting_voter_pda != *pda_voter.key || bump_voter_ != bump_voter {
+        if pda_voter_ != *pda_voter.key || bump_voter_ != bump_voter {
             return Err(JanecekError::PdaMismatch.into());
         }
-        if voting_owner_pda != *pda_owner.key || bump_owner_ != bump_owner {
+        if pda_owner_ != *pda_owner.key || bump_owner_ != bump_owner {
             return Err(JanecekError::PdaMismatch.into());
         }
-        if voting_state_pda != *pda_state.key || bump_state_ != bump_state {
+        if pda_state_ != *pda_state.key || bump_state_ != bump_state {
             return Err(JanecekError::PdaMismatch.into());
         }
 
@@ -634,11 +615,19 @@ impl Processor {
             return Err(JanecekError::AccountNotInitialized.into());
         }
 
-        // check if owner and state correspond to each other
-        if (state_state.voting_owner != owner_state.initializer)
-            || (owner_state.voting_state != *pda_state.key)
-        {
+        // double check voting owner and initiator
+        if *owner.key != owner_state.author {
             return Err(JanecekError::VotingOwnerMismatch.into());
+        }
+
+        // double check voting owner and initiator
+        if state_state.voting_owner != *pda_owner.key {
+            return Err(JanecekError::VotingOwnerMismatch.into());
+        }
+
+        // check if state corresponds
+        if owner_state.voting_state != *pda_state.key {
+            return Err(JanecekError::VotingStateMismatch.into());
         }
 
         let clock: Clock = Clock::get().unwrap();
@@ -678,7 +667,7 @@ impl Processor {
 
         let author = next_account_info(accounts_iter)?;
 
-        let initiator = next_account_info(accounts_iter)?;
+        let owner = next_account_info(accounts_iter)?;
 
         let pda_owner = next_account_info(accounts_iter)?;
 
@@ -688,26 +677,18 @@ impl Processor {
 
         let pda_party = next_account_info(accounts_iter)?;
 
-        let system_program = next_account_info(accounts_iter)?;
+        let (pda_owner_, bump_owner_) =
+            Pubkey::find_program_address(&[b"voting_owner", owner.key.as_ref()], program_id);
 
-        let (voting_owner_pda, bump_owner_) =
-            Pubkey::find_program_address(&[b"voting_owner", initiator.key.as_ref()], program_id);
+        let (pda_state_, bump_state_) =
+            Pubkey::find_program_address(&[b"voting_state", pda_owner_.as_ref()], program_id);
 
-        let (voting_state_pda, bump_state_) =
-            Pubkey::find_program_address(&[b"voting_state", voting_owner_pda.as_ref()], program_id);
-
-        let (voting_voter_pda, bump_voter_) = Pubkey::find_program_address(
-            &[b"new_voter", author.key.as_ref(), pda_state.key.as_ref()],
+        let (pda_voter_, bump_voter_) = Pubkey::find_program_address(
+            &[b"new_voter", author.key.as_ref(), pda_state_.as_ref()],
             program_id,
         );
-
-        let (voting_party_pda, bump_party_) =
-            Pubkey::find_program_address(&[name.as_bytes(), voting_state_pda.as_ref()], program_id);
-
-        // check system program id
-        if *system_program.key != solana_program::system_program::id() {
-            return Err(JanecekError::SystemIDMismatch.into());
-        }
+        let (pda_party_, bump_party_) =
+            Pubkey::find_program_address(&[name.as_bytes(), pda_state_.as_ref()], program_id);
 
         // check if voter signed
         if !author.is_signer {
@@ -723,16 +704,16 @@ impl Processor {
         }
 
         // check PDA correctness
-        if voting_owner_pda != *pda_owner.key || bump_owner_ != bump_owner {
+        if pda_owner_ != *pda_owner.key || bump_owner_ != bump_owner {
             return Err(JanecekError::PdaMismatch.into());
         }
-        if voting_state_pda != *pda_state.key || bump_state_ != bump_state {
+        if pda_state_ != *pda_state.key || bump_state_ != bump_state {
             return Err(JanecekError::PdaMismatch.into());
         }
-        if voting_voter_pda != *pda_voter.key || bump_voter_ != bump_voter {
+        if pda_voter_ != *pda_voter.key || bump_voter_ != bump_voter {
             return Err(JanecekError::PdaMismatch.into());
         }
-        if voting_party_pda != *pda_party.key || bump_party_ != bump_party {
+        if pda_party_ != *pda_party.key || bump_party_ != bump_party {
             return Err(JanecekError::PdaMismatch.into());
         }
 
@@ -753,20 +734,27 @@ impl Processor {
             return Err(JanecekError::AccountNotInitialized.into());
         }
 
+        // double check voter and his author
+        if *author.key != voter_state.author {
+            return Err(JanecekError::VoterMismatch.into());
+        }
+
+        // double check voting owner and initiator
+        if *owner.key != owner_state.author {
+            return Err(JanecekError::VotingOwnerMismatch.into());
+        }
+
         // check if owner corresponds
-        if state_state.voting_owner != owner_state.initializer {
+        if state_state.voting_owner != *pda_owner.key {
             return Err(JanecekError::VotingOwnerMismatch.into());
         }
         // check if state corresponds
         if owner_state.voting_state != *pda_state.key {
             return Err(JanecekError::VotingStateMismatch.into());
         }
+
         // check if voter exists in this voting state
         if *pda_state.key != voter_state.voting_state {
-            return Err(JanecekError::VotingStateMismatch.into());
-        }
-        // check if party exists in this voting state
-        if *pda_state.key != party_state.voting_state {
             return Err(JanecekError::VotingStateMismatch.into());
         }
 
@@ -844,7 +832,7 @@ impl Processor {
 
         let author = next_account_info(accounts_iter)?;
 
-        let initiator = next_account_info(accounts_iter)?;
+        let owner = next_account_info(accounts_iter)?;
 
         let pda_owner = next_account_info(accounts_iter)?;
 
@@ -854,26 +842,18 @@ impl Processor {
 
         let pda_party = next_account_info(accounts_iter)?;
 
-        let system_program = next_account_info(accounts_iter)?;
+        let (pda_owner_, bump_owner_) =
+            Pubkey::find_program_address(&[b"voting_owner", owner.key.as_ref()], program_id);
 
-        let (voting_owner_pda, bump_owner_) =
-            Pubkey::find_program_address(&[b"voting_owner", initiator.key.as_ref()], program_id);
+        let (pda_state_, bump_state_) =
+            Pubkey::find_program_address(&[b"voting_state", pda_owner_.as_ref()], program_id);
 
-        let (voting_state_pda, bump_state_) =
-            Pubkey::find_program_address(&[b"voting_state", voting_owner_pda.as_ref()], program_id);
-
-        let (voting_voter_pda, bump_voter_) = Pubkey::find_program_address(
-            &[b"new_voter", author.key.as_ref(), pda_state.key.as_ref()],
+        let (pda_voter_, bump_voter_) = Pubkey::find_program_address(
+            &[b"new_voter", author.key.as_ref(), pda_state_.as_ref()],
             program_id,
         );
-
-        let (voting_party_pda, bump_party_) =
-            Pubkey::find_program_address(&[name.as_bytes(), voting_state_pda.as_ref()], program_id);
-
-        // check system program id
-        if *system_program.key != solana_program::system_program::id() {
-            return Err(JanecekError::SystemIDMismatch.into());
-        }
+        let (pda_party_, bump_party_) =
+            Pubkey::find_program_address(&[name.as_bytes(), pda_state_.as_ref()], program_id);
 
         // check if voter signed
         if !author.is_signer {
@@ -889,16 +869,16 @@ impl Processor {
         }
 
         // check PDA correctness
-        if voting_owner_pda != *pda_owner.key || bump_owner_ != bump_owner {
+        if pda_owner_ != *pda_owner.key || bump_owner_ != bump_owner {
             return Err(JanecekError::PdaMismatch.into());
         }
-        if voting_state_pda != *pda_state.key || bump_state_ != bump_state {
+        if pda_state_ != *pda_state.key || bump_state_ != bump_state {
             return Err(JanecekError::PdaMismatch.into());
         }
-        if voting_voter_pda != *pda_voter.key || bump_voter_ != bump_voter {
+        if pda_voter_ != *pda_voter.key || bump_voter_ != bump_voter {
             return Err(JanecekError::PdaMismatch.into());
         }
-        if voting_party_pda != *pda_party.key || bump_party_ != bump_party {
+        if pda_party_ != *pda_party.key || bump_party_ != bump_party {
             return Err(JanecekError::PdaMismatch.into());
         }
 
@@ -919,8 +899,18 @@ impl Processor {
             return Err(JanecekError::AccountNotInitialized.into());
         }
 
+        // double check voter and his author
+        if *author.key != voter_state.author {
+            return Err(JanecekError::VoterMismatch.into());
+        }
+
+        // double check voting owner and initiator
+        if *owner.key != owner_state.author {
+            return Err(JanecekError::VotingOwnerMismatch.into());
+        }
+
         // check if owner corresponds
-        if state_state.voting_owner != owner_state.initializer {
+        if state_state.voting_owner != *pda_owner.key {
             return Err(JanecekError::VotingOwnerMismatch.into());
         }
         // check if state corresponds
@@ -930,11 +920,6 @@ impl Processor {
 
         // check if voter exists in this voting state
         if *pda_state.key != voter_state.voting_state {
-            return Err(JanecekError::VotingStateMismatch.into());
-        }
-
-        // check if party exists in this voting state
-        if *pda_state.key != party_state.voting_state {
             return Err(JanecekError::VotingStateMismatch.into());
         }
 

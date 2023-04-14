@@ -21,6 +21,10 @@ pub enum JanecekError {
     VotingOwnerMismatch,
     #[error("Voting state ID mismatch")]
     VotingStateMismatch,
+    #[error("Account owner mismatch")]
+    AccountOwnerMismatch,
+    #[error("Voter Mismatch")]
+    VoterMismatch,
 
     // misc
     #[error("Addition overflow")]
