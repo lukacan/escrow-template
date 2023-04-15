@@ -71,16 +71,16 @@ pub mod state {
                 bump,
             } = self;
 
-            let name_len = name.chars().count() as u32;
-            discriminant_dst[0] = *discriminant;
-            is_initialized_dst[0] = *is_initialized as u8;
+            let name_len:u32 = u32::try_from(name.chars().count()).unwrap();
+            discriminant_dst[0] = u8::try_from(*discriminant).unwrap();
+            is_initialized_dst[0] = u8::try_from(*is_initialized).unwrap();
             author_dst.copy_from_slice(author.as_ref());
             voting_state_dst.copy_from_slice(voting_state.as_ref());
             *created_dst = created.to_le_bytes();
             *name_len_dst = name_len.to_le_bytes();
-            name_dst[..name_len as usize].copy_from_slice(name.as_bytes());
+            name_dst[.. usize::try_from(name_len).unwrap()].copy_from_slice(name.as_bytes());
             *votes_dst = votes.to_be_bytes();
-            bump_dst[0] = *bump;
+            bump_dst[0] = u8::try_from(*bump).unwrap();
         }
         fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
             let src = array_ref![src, 0, Party::LEN];
@@ -96,9 +96,9 @@ pub mod state {
                 bump,
             ) = array_refs![src, 1, 1, 32, 32, 8, 4, 4 * NAME_LENGTH, 8, 1];
 
-            let bump = bump[0];
-            let discriminant = discriminant[0];
-            let name_len_ = u32::from_le_bytes(*name_len);
+            let bump = u8::try_from(bump[0]).unwrap();
+            let discriminant = u8::try_from(discriminant[0]).unwrap();
+            let name_len_ = u32::try_from(u32::from_le_bytes(*name_len)).unwrap();
 
             let is_initialized = match is_initialized {
                 [0] => false,
@@ -113,7 +113,7 @@ pub mod state {
                 return Err(JanecekError::DiscriminantMismatch.into());
             }
 
-            let tmp_name = String::from_utf8(name[0..name_len_ as usize].to_vec());
+            let tmp_name = String::from_utf8(name[0..usize::try_from(name_len_).unwrap()].to_vec());
 
             let name = match tmp_name {
                 Ok(_) => tmp_name.unwrap(),
@@ -125,9 +125,9 @@ pub mod state {
                 is_initialized,
                 author: Pubkey::new_from_array(*author),
                 voting_state: Pubkey::new_from_array(*voting_state),
-                created: i64::from_le_bytes(*created),
+                created: i64::try_from(i64::from_le_bytes(*created)).unwrap(),
                 name: name,
-                votes: i64::from_le_bytes(*votes),
+                votes: i64::try_from(i64::from_le_bytes(*votes)).unwrap(),
                 bump: bump,
             })
         }
@@ -190,15 +190,15 @@ pub mod state {
                 bump,
             } = self;
 
-            discriminant_dst[0] = *discriminant;
-            is_initialized_dst[0] = *is_initialized as u8;
+            discriminant_dst[0] = u8::try_from(*discriminant).unwrap();
+            is_initialized_dst[0] = u8::try_from(*is_initialized).unwrap();
             author_dst.copy_from_slice(author.as_ref());
             voting_state_dst.copy_from_slice(voting_state.as_ref());
-            num_votes_dst[0] = *num_votes;
+            num_votes_dst[0] = u8::try_from(*num_votes).unwrap();
             pos1_dst.copy_from_slice(pos1.as_ref());
             pos2_dst.copy_from_slice(pos2.as_ref());
             neg1_dst.copy_from_slice(neg1.as_ref());
-            bump_dst[0] = *bump;
+            bump_dst[0] = u8::try_from(*bump).unwrap();
         }
 
         fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
@@ -221,9 +221,9 @@ pub mod state {
                 _ => return Err(ProgramError::InvalidAccountData),
             };
 
-            let bump = bump[0];
-            let num_votes = num_votes[0];
-            let discriminant = discriminant[0];
+            let bump = u8::try_from(bump[0]).unwrap();
+            let num_votes = u8::try_from(num_votes[0]).unwrap();
+            let discriminant = u8::try_from(discriminant[0]).unwrap();
 
             if is_initialized && discriminant != VOTER {
                 return Err(JanecekError::DiscriminantMismatch.into());
@@ -288,12 +288,12 @@ pub mod state {
                 bump,
             } = self;
 
-            discriminant_dst[0] = *discriminant;
-            is_initialized_dst[0] = *is_initialized as u8;
+            discriminant_dst[0] = u8::try_from(*discriminant).unwrap();
+            is_initialized_dst[0] = u8::try_from(*is_initialized).unwrap();
             voting_owner_dst.copy_from_slice(voting_owner.as_ref());
             *voting_started_dst = voting_started.to_le_bytes();
             *voting_ends_dst = voting_ends.to_le_bytes();
-            bump_dst[0] = *bump;
+            bump_dst[0] = u8::try_from(*bump).unwrap();
         }
 
         fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
@@ -307,8 +307,8 @@ pub mod state {
                 _ => return Err(ProgramError::InvalidAccountData),
             };
 
-            let bump = bump[0];
-            let discriminant = discriminant[0];
+            let bump = u8::try_from(bump[0]).unwrap();
+            let discriminant = u8::try_from(discriminant[0]).unwrap();
 
             if is_initialized && discriminant != VOTINGSTATE {
                 return Err(JanecekError::DiscriminantMismatch.into());
@@ -318,8 +318,8 @@ pub mod state {
                 discriminant,
                 is_initialized,
                 voting_owner: Pubkey::new_from_array(*voting_owner),
-                voting_started: i64::from_le_bytes(*voting_started),
-                voting_ends: i64::from_le_bytes(*voting_ends),
+                voting_started: i64::try_from(i64::from_le_bytes(*voting_started)).unwrap(),
+                voting_ends: i64::try_from(i64::from_le_bytes(*voting_ends)).unwrap(),
                 bump: bump,
             })
         }
@@ -360,11 +360,11 @@ pub mod state {
                 bump,
             } = self;
 
-            discriminant_dst[0] = *discriminant;
-            is_initialized_dst[0] = *is_initialized as u8;
+            discriminant_dst[0] = u8::try_from(*discriminant).unwrap();
+            is_initialized_dst[0] = u8::try_from(*is_initialized).unwrap();
             initializer_dst.copy_from_slice(owner.as_ref());
             voting_state_dst.copy_from_slice(voting_state.as_ref());
-            bump_dst[0] = *bump;
+            bump_dst[0] = u8::try_from(*bump).unwrap();
         }
 
         fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
@@ -378,8 +378,10 @@ pub mod state {
                 _ => return Err(ProgramError::InvalidAccountData),
             };
 
-            let bump = bump[0];
-            let discriminant = discriminant[0];
+            let bump = u8::try_from(bump[0]).unwrap();
+            let discriminant = u8::try_from(discriminant[0]).unwrap();
+
+            
             if is_initialized && discriminant != VOTINGOWNER {
                 return Err(JanecekError::DiscriminantMismatch.into());
             }
