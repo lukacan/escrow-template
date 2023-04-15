@@ -402,26 +402,15 @@ impl Processor {
             return Err(JanecekError::AccountMutable.into());
         }
 
-        // pda correctness
-        if pda_party_ != *pda_party.key || bump_party_ != bump_party {
-            return Err(JanecekError::PdaMismatch.into());
-        }
-        if pda_owner_ != *pda_owner.key || bump_owner_ != bump_owner {
-            return Err(JanecekError::PdaMismatch.into());
-        }
-        if pda_state_ != *pda_state.key || bump_state_ != bump_state {
-            return Err(JanecekError::PdaMismatch.into());
-        }
-
         // CHECK RENT EXEMPT
         if !rent.is_exempt(pda_party.lamports(), pda_party.try_data_len()?) {
             return Err(JanecekError::ConstraintRentExempt.into());
         }
 
         // deserialize data and check if both are initialized and if owner match
-        let owner_state = VotingOwner::unpack_unchecked(&pda_owner.data.borrow_mut())?;
+        let owner_state = VotingOwner::unpack(&pda_owner.data.borrow_mut())?;
 
-        let voting_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
+        let voting_state = VotingState::unpack(&pda_state.data.borrow_mut())?;
 
         let mut party_state = Party::unpack_unchecked(&pda_party.data.borrow_mut())?;
 
@@ -456,6 +445,26 @@ impl Processor {
         party_state.name = name;
         party_state.votes = 0;
         party_state.bump = bump_party;
+
+        // pda correctness
+        if pda_party_ != *pda_party.key
+            || bump_party_ != bump_party
+            || party_state.bump != bump_party
+        {
+            return Err(JanecekError::PdaMismatch.into());
+        }
+        if pda_owner_ != *pda_owner.key
+            || bump_owner_ != bump_owner
+            || owner_state.bump != bump_owner
+        {
+            return Err(JanecekError::PdaMismatch.into());
+        }
+        if pda_state_ != *pda_state.key
+            || bump_state_ != bump_state
+            || voting_state.bump != bump_state
+        {
+            return Err(JanecekError::PdaMismatch.into());
+        }
 
         Party::pack(party_state, &mut &mut pda_party.data.borrow_mut()[..])?;
 
@@ -593,26 +602,15 @@ impl Processor {
             return Err(JanecekError::AccountMutable.into());
         }
 
-        // pda correctness
-        if pda_voter_ != *pda_voter.key || bump_voter_ != bump_voter {
-            return Err(JanecekError::PdaMismatch.into());
-        }
-        if pda_owner_ != *pda_owner.key || bump_owner_ != bump_owner {
-            return Err(JanecekError::PdaMismatch.into());
-        }
-        if pda_state_ != *pda_state.key || bump_state_ != bump_state {
-            return Err(JanecekError::PdaMismatch.into());
-        }
-
         // CHECK RENT EXEMPT
         if !rent.is_exempt(pda_voter.lamports(), pda_voter.try_data_len()?) {
             return Err(JanecekError::ConstraintRentExempt.into());
         }
 
         // deserialize data and check if both are initialized and if owner match
-        let owner_state = VotingOwner::unpack_unchecked(&pda_owner.data.borrow_mut())?;
+        let owner_state = VotingOwner::unpack(&pda_owner.data.borrow_mut())?;
 
-        let voting_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
+        let voting_state = VotingState::unpack(&pda_state.data.borrow_mut())?;
 
         let mut voter_state = Voter::unpack_unchecked(&pda_voter.data.borrow_mut())?;
 
@@ -643,6 +641,26 @@ impl Processor {
         voter_state.num_votes = 3;
         voter_state.bump = bump_voter;
 
+        // pda correctness
+        if pda_voter_ != *pda_voter.key
+            || bump_voter_ != bump_voter
+            || voter_state.bump != bump_voter
+        {
+            return Err(JanecekError::PdaMismatch.into());
+        }
+        if pda_owner_ != *pda_owner.key
+            || bump_owner_ != bump_owner
+            || owner_state.bump != bump_owner
+        {
+            return Err(JanecekError::PdaMismatch.into());
+        }
+        if pda_state_ != *pda_state.key
+            || bump_state_ != bump_state
+            || voting_state.bump != bump_state
+        {
+            return Err(JanecekError::PdaMismatch.into());
+        }
+
         Voter::pack(voter_state, &mut &mut pda_voter.data.borrow_mut()[..])?;
 
         Ok(())
@@ -657,13 +675,13 @@ impl Processor {
 
         let accounts_iter = &mut accounts.iter();
 
-        let author = next_account_info(accounts_iter)?;
+        let _author = next_account_info(accounts_iter)?;
 
-        let owner = next_account_info(accounts_iter)?;
+        let _owner = next_account_info(accounts_iter)?;
 
-        let pda_owner = next_account_info(accounts_iter)?;
+        let _pda_owner = next_account_info(accounts_iter)?;
 
-        let pda_state = next_account_info(accounts_iter)?;
+        let _pda_state = next_account_info(accounts_iter)?;
 
         let pda_voter = next_account_info(accounts_iter)?;
 
@@ -671,26 +689,7 @@ impl Processor {
 
         Self::check_vote_accounts(&program_id, &accounts, &ix)?;
 
-        let mut voter_state = Voter::unpack_unchecked(&pda_voter.data.borrow_mut())?;
-
-        let mut party_state = Party::unpack_unchecked(&pda_party.data.borrow_mut())?;
-
-        let owner_state = VotingOwner::unpack_unchecked(&pda_owner.data.borrow_mut())?;
-
-        let voting_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
-
-        Self::check_vote_context(
-            &owner_state,
-            &voting_state,
-            &party_state,
-            &voter_state,
-            &author.key,
-            &owner.key,
-            &pda_owner.key,
-            &pda_state.key,
-        )?;
-
-        Self::check_voting_end(&voting_state)?;
+        let mut voter_state = Voter::unpack(&pda_voter.data.borrow_mut())?;
 
         match voter_state.num_votes {
             0 => {
@@ -700,6 +699,7 @@ impl Processor {
                 return Err(JanecekError::NoMorePosVotes.into());
             }
             2 => {
+                let mut party_state = Party::unpack(&pda_party.data.borrow_mut())?;
                 if voter_state.pos1 == *pda_party.key {
                     return Err(JanecekError::NoBothPosSameParty.into());
                 } else {
@@ -721,6 +721,7 @@ impl Processor {
                 }
             }
             3 => {
+                let mut party_state = Party::unpack(&pda_party.data.borrow_mut())?;
                 match voter_state.num_votes.checked_sub(1) {
                     Some(sucess) => voter_state.num_votes = sucess,
                     None => return Err(JanecekError::SubtractionOverflow.into()),
@@ -750,13 +751,13 @@ impl Processor {
 
         let accounts_iter = &mut accounts.iter();
 
-        let author = next_account_info(accounts_iter)?;
+        let _author = next_account_info(accounts_iter)?;
 
-        let owner = next_account_info(accounts_iter)?;
+        let _owner = next_account_info(accounts_iter)?;
 
-        let pda_owner = next_account_info(accounts_iter)?;
+        let _pda_owner = next_account_info(accounts_iter)?;
 
-        let pda_state = next_account_info(accounts_iter)?;
+        let _pda_state = next_account_info(accounts_iter)?;
 
         let pda_voter = next_account_info(accounts_iter)?;
 
@@ -764,32 +765,14 @@ impl Processor {
 
         Self::check_vote_accounts(&program_id, &accounts, &ix)?;
 
-        let mut voter_state = Voter::unpack_unchecked(&pda_voter.data.borrow_mut())?;
-
-        let mut party_state = Party::unpack_unchecked(&pda_party.data.borrow_mut())?;
-
-        let owner_state = VotingOwner::unpack_unchecked(&pda_owner.data.borrow_mut())?;
-
-        let voting_state = VotingState::unpack_unchecked(&pda_state.data.borrow_mut())?;
-
-        Self::check_vote_context(
-            &owner_state,
-            &voting_state,
-            &party_state,
-            &voter_state,
-            &author.key,
-            &owner.key,
-            &pda_owner.key,
-            &pda_state.key,
-        )?;
-
-        Self::check_voting_end(&voting_state)?;
+        let mut voter_state = Voter::unpack(&pda_voter.data.borrow_mut())?;
 
         match voter_state.num_votes {
             0 => {
                 return Err(JanecekError::NoMoreVotes.into());
             }
             1 => {
+                let mut party_state = Party::unpack(&pda_party.data.borrow_mut())?;
                 match voter_state.num_votes.checked_sub(1) {
                     Some(sucess) => voter_state.num_votes = sucess,
                     None => return Err(JanecekError::SubtractionOverflow.into()),
@@ -858,6 +841,14 @@ impl Processor {
             program_id,
         );
 
+        let voter_state = Voter::unpack(&pda_voter.data.borrow_mut())?;
+
+        let party_state = Party::unpack(&pda_party.data.borrow_mut())?;
+
+        let owner_state = VotingOwner::unpack(&pda_owner.data.borrow_mut())?;
+
+        let voting_state = VotingState::unpack(&pda_state.data.borrow_mut())?;
+
         // SIGNER CHECK
         if !author.is_signer {
             return Err(JanecekError::AccountNotSigner.into());
@@ -886,18 +877,43 @@ impl Processor {
         }
 
         // check PDA correctness
-        if pda_owner_ != *pda_owner.key || bump_owner_ != ix_vote.bump_owner {
+        if pda_owner_ != *pda_owner.key
+            || bump_owner_ != ix_vote.bump_owner
+            || owner_state.bump != ix_vote.bump_owner
+        {
             return Err(JanecekError::PdaMismatch.into());
         }
-        if pda_state_ != *pda_state.key || bump_state_ != ix_vote.bump_state {
+        if pda_state_ != *pda_state.key
+            || bump_state_ != ix_vote.bump_state
+            || voting_state.bump != ix_vote.bump_state
+        {
             return Err(JanecekError::PdaMismatch.into());
         }
-        if pda_voter_ != *pda_voter.key || bump_voter_ != ix_vote.bump_voter {
+        if pda_voter_ != *pda_voter.key
+            || bump_voter_ != ix_vote.bump_voter
+            || voter_state.bump != ix_vote.bump_voter
+        {
             return Err(JanecekError::PdaMismatch.into());
         }
-        if pda_party_ != *pda_party.key || bump_party_ != ix_vote.bump_party {
+        if pda_party_ != *pda_party.key
+            || bump_party_ != ix_vote.bump_party
+            || party_state.bump != ix_vote.bump_party
+        {
             return Err(JanecekError::PdaMismatch.into());
         }
+        Self::check_vote_context(
+            &owner_state,
+            &voting_state,
+            &party_state,
+            &voter_state,
+            &author.key,
+            &owner.key,
+            &pda_owner.key,
+            &pda_state.key,
+        )?;
+
+        Self::check_voting_end(&voting_state)?;
+
         Ok(())
     }
     fn check_add_context(
