@@ -2,7 +2,7 @@
 use solana_program::program_error::ProgramError;
 use thiserror::Error;
 
-#[derive(Error, Debug, Copy, Clone)]
+#[derive(Error, Debug, Copy, Clone, PartialEq)]
 pub enum JanecekError {
     // instruction
     #[error("Invalid Instruction")]
