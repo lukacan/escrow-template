@@ -232,6 +232,9 @@ impl Processor {
         if !pda_owner.is_writable {
             return Err(JanecekError::AccountNotmutable.into());
         }
+        if system_program.is_writable {
+            return Err(JanecekError::AccountMutable.into());
+        }
 
         // check provided PDAs and bumps match
         if pda_owner_ != *pda_owner.key || bump_owner_ != bump_owner {
@@ -303,7 +306,7 @@ impl Processor {
 
         let accounts_iter = &mut accounts.iter();
 
-        let author_party = next_account_info(accounts_iter)?;
+        let author = next_account_info(accounts_iter)?;
 
         let owner = next_account_info(accounts_iter)?;
 
@@ -331,13 +334,13 @@ impl Processor {
         if current_lamports == 0 {
             program::invoke_signed(
                 &system_instruction::create_account(
-                    author_party.key,
+                    author.key,
                     pda_party.key,
                     lamports_needed,
                     Party::LEN as u64,
                     program_id,
                 ),
-                &[author_party.clone(), pda_party.clone()],
+                &[author.clone(), pda_party.clone()],
                 &[&[&name.as_bytes(), pda_state.key.as_ref(), &[bump_party]]],
             )?;
         } else {
@@ -348,12 +351,8 @@ impl Processor {
 
             if required_lamports > 0 {
                 program::invoke_signed(
-                    &system_instruction::transfer(
-                        author_party.key,
-                        pda_party.key,
-                        required_lamports,
-                    ),
-                    &[author_party.clone(), pda_party.clone()],
+                    &system_instruction::transfer(author.key, pda_party.key, required_lamports),
+                    &[author.clone(), pda_party.clone()],
                     &[&[&name.as_bytes(), pda_state.key.as_ref(), &[bump_party]]],
                 )?;
             }
@@ -372,7 +371,7 @@ impl Processor {
         }
 
         // SIGNER CHECK
-        if !owner.is_signer || !author_party.is_signer {
+        if !owner.is_signer || !author.is_signer {
             return Err(JanecekError::AccountNotSigner.into());
         }
 
@@ -392,8 +391,15 @@ impl Processor {
         if !pda_party.is_writable {
             return Err(JanecekError::AccountNotmutable.into());
         }
-        if !author_party.is_writable {
+        if !author.is_writable {
             return Err(JanecekError::AccountNotmutable.into());
+        }
+        if system_program.is_writable
+            || owner.is_writable
+            || pda_owner.is_writable
+            || pda_state.is_writable
+        {
+            return Err(JanecekError::AccountMutable.into());
         }
 
         // pda correctness
@@ -444,7 +450,7 @@ impl Processor {
 
         // create party state
         party_state.is_initialized = true;
-        party_state.author = *author_party.key;
+        party_state.author = *author.key;
         party_state.voting_state = *pda_state.key;
         party_state.created = clock.unix_timestamp;
         party_state.name = name;
@@ -578,6 +584,13 @@ impl Processor {
         }
         if !author.is_writable {
             return Err(JanecekError::AccountNotmutable.into());
+        }
+        if system_program.is_writable
+            || owner.is_writable
+            || pda_owner.is_writable
+            || pda_state.is_writable
+        {
+            return Err(JanecekError::AccountMutable.into());
         }
 
         // pda correctness
@@ -867,6 +880,9 @@ impl Processor {
         }
         if !author.is_writable {
             return Err(JanecekError::AccountNotmutable.into());
+        }
+        if owner.is_writable || pda_owner.is_writable || pda_state.is_writable {
+            return Err(JanecekError::AccountMutable.into());
         }
 
         // check PDA correctness

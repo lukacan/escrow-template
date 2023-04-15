@@ -39,6 +39,8 @@ pub enum JanecekError {
     AccountNotSigner,
     #[error("Account is not mutable")]
     AccountNotmutable,
+    #[error("Read-only account required")]
+    AccountMutable,
     #[error("Rent Exempt")]
     ConstraintRentExempt,
     #[error("Account is already initialized")]
