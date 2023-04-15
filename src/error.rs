@@ -33,6 +33,8 @@ pub enum JanecekError {
     SubtractionOverflow,
     #[error("String too Long")]
     StringTooLong,
+    #[error("Incorrect account type")]
+    DiscriminantMismatch,
 
     // context accounts
     #[error("Account is not signer")]

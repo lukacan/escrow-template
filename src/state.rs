@@ -9,8 +9,14 @@ pub mod state {
     use solana_program::program_pack::{IsInitialized, Pack, Sealed};
 
     use super::*;
-    #[derive(Debug)]
+
+    pub const VOTINGOWNER: u8 = 31;
+    pub const VOTINGSTATE: u8 = 32;
+    pub const PARTY: u8 = 33;
+    pub const VOTER: u8 = 34;
+
     pub struct Party {
+        pub discriminant: u8,
         pub is_initialized: bool,
         pub author: Pubkey,
         pub voting_state: Pubkey,
@@ -29,7 +35,8 @@ pub mod state {
     impl Sealed for Party {}
 
     impl Pack for Party {
-        const LEN: usize = 1    // is_initialzed
+        const LEN: usize = 1    // discriminant
+        + 1                     // is_initialzed
         + 32                    // author
         + 32                    // voting state
         + 8                     // created
@@ -42,6 +49,7 @@ pub mod state {
             let dst = array_mut_ref![dst, 0, Party::LEN];
 
             let (
+                discriminant_dst,
                 is_initialized_dst,
                 author_dst,
                 voting_state_dst,
@@ -50,9 +58,10 @@ pub mod state {
                 name_dst,
                 votes_dst,
                 bump_dst,
-            ) = mut_array_refs![dst, 1, 32, 32, 8, 4, 4 * NAME_LENGTH, 8, 1];
+            ) = mut_array_refs![dst, 1, 1, 32, 32, 8, 4, 4 * NAME_LENGTH, 8, 1];
 
             let Party {
+                discriminant,
                 is_initialized,
                 author,
                 voting_state,
@@ -62,8 +71,8 @@ pub mod state {
                 bump,
             } = self;
 
-            // check if name is too long
             let name_len = name.chars().count() as u32;
+            discriminant_dst[0] = *discriminant;
             is_initialized_dst[0] = *is_initialized as u8;
             author_dst.copy_from_slice(author.as_ref());
             voting_state_dst.copy_from_slice(voting_state.as_ref());
@@ -75,14 +84,21 @@ pub mod state {
         }
         fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
             let src = array_ref![src, 0, Party::LEN];
-            let (is_initialized, author, voting_state, created, name_len, name, votes, bump) =
-                array_refs![src, 1, 32, 32, 8, 4, 4 * NAME_LENGTH, 8, 1];
+            let (
+                discriminant,
+                is_initialized,
+                author,
+                voting_state,
+                created,
+                name_len,
+                name,
+                votes,
+                bump,
+            ) = array_refs![src, 1, 1, 32, 32, 8, 4, 4 * NAME_LENGTH, 8, 1];
 
+            let bump = bump[0];
+            let discriminant = discriminant[0];
             let name_len_ = u32::from_le_bytes(*name_len);
-
-            if name_len_ > 32 {
-                return Err(JanecekError::StringTooLong.into());
-            }
 
             let is_initialized = match is_initialized {
                 [0] => false,
@@ -90,15 +106,22 @@ pub mod state {
                 _ => return Err(ProgramError::InvalidAccountData),
             };
 
+            if is_initialized && name_len_ > 32 {
+                return Err(JanecekError::StringTooLong.into());
+            }
+            if is_initialized && discriminant != PARTY {
+                return Err(JanecekError::DiscriminantMismatch.into());
+            }
+
             let tmp_name = String::from_utf8(name[0..name_len_ as usize].to_vec());
 
             let name = match tmp_name {
                 Ok(_) => tmp_name.unwrap(),
                 Err(_) => String::from(""),
             };
-            let bump = bump[0];
 
             Ok(Party {
+                discriminant,
                 is_initialized,
                 author: Pubkey::new_from_array(*author),
                 voting_state: Pubkey::new_from_array(*voting_state),
@@ -111,6 +134,7 @@ pub mod state {
     }
 
     pub struct Voter {
+        pub discriminant: u8,
         pub is_initialized: bool,
         pub author: Pubkey,
         pub voting_state: Pubkey,
@@ -129,7 +153,8 @@ pub mod state {
 
     impl Sealed for Voter {}
     impl Pack for Voter {
-        const LEN: usize = 1    // is_initialzed
+        const LEN: usize = 1    // discriminant
+        + 1                     // is_initialzed
         + 32                    // author
         + 32                    // voting state
         + 1                     // num votes
@@ -142,6 +167,7 @@ pub mod state {
             let dst = array_mut_ref![dst, 0, Voter::LEN];
 
             let (
+                discriminant_dst,
                 is_initialized_dst,
                 author_dst,
                 voting_state_dst,
@@ -150,9 +176,10 @@ pub mod state {
                 pos2_dst,
                 neg1_dst,
                 bump_dst,
-            ) = mut_array_refs![dst, 1, 32, 32, 1, 32, 32, 32, 1];
+            ) = mut_array_refs![dst, 1, 1, 32, 32, 1, 32, 32, 32, 1];
 
             let Voter {
+                discriminant,
                 is_initialized,
                 author,
                 voting_state,
@@ -163,6 +190,7 @@ pub mod state {
                 bump,
             } = self;
 
+            discriminant_dst[0] = *discriminant;
             is_initialized_dst[0] = *is_initialized as u8;
             author_dst.copy_from_slice(author.as_ref());
             voting_state_dst.copy_from_slice(voting_state.as_ref());
@@ -175,8 +203,17 @@ pub mod state {
 
         fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
             let src = array_ref![src, 0, Voter::LEN];
-            let (is_initialized, author, voting_state, num_votes, pos1, pos2, neg1, bump) =
-                array_refs![src, 1, 32, 32, 1, 32, 32, 32, 1];
+            let (
+                discriminant,
+                is_initialized,
+                author,
+                voting_state,
+                num_votes,
+                pos1,
+                pos2,
+                neg1,
+                bump,
+            ) = array_refs![src, 1, 1, 32, 32, 1, 32, 32, 32, 1];
 
             let is_initialized = match is_initialized {
                 [0] => false,
@@ -186,8 +223,14 @@ pub mod state {
 
             let bump = bump[0];
             let num_votes = num_votes[0];
+            let discriminant = discriminant[0];
+
+            if is_initialized && discriminant != VOTER {
+                return Err(JanecekError::DiscriminantMismatch.into());
+            }
 
             Ok(Voter {
+                discriminant,
                 is_initialized,
                 author: Pubkey::new_from_array(*author),
                 voting_state: Pubkey::new_from_array(*voting_state),
@@ -201,6 +244,7 @@ pub mod state {
     }
 
     pub struct VotingState {
+        pub discriminant: u8,
         pub is_initialized: bool,
         pub voting_owner: Pubkey,
         pub voting_started: i64,
@@ -216,7 +260,8 @@ pub mod state {
 
     impl Sealed for VotingState {}
     impl Pack for VotingState {
-        const LEN: usize = 1    // is initialzed
+        const LEN: usize = 1    // discriminant
+        + 1                     // is initialzed
         + 32                    // voting owner
         + 8                     // voting started
         +8                      // voting ends
@@ -226,14 +271,16 @@ pub mod state {
             let dst = array_mut_ref![dst, 0, VotingState::LEN];
 
             let (
+                discriminant_dst,
                 is_initialized_dst,
                 voting_owner_dst,
                 voting_started_dst,
                 voting_ends_dst,
                 bump_dst,
-            ) = mut_array_refs![dst, 1, 32, 8, 8, 1];
+            ) = mut_array_refs![dst, 1, 1, 32, 8, 8, 1];
 
             let VotingState {
+                discriminant,
                 is_initialized,
                 voting_owner,
                 voting_started,
@@ -241,6 +288,7 @@ pub mod state {
                 bump,
             } = self;
 
+            discriminant_dst[0] = *discriminant;
             is_initialized_dst[0] = *is_initialized as u8;
             voting_owner_dst.copy_from_slice(voting_owner.as_ref());
             *voting_started_dst = voting_started.to_le_bytes();
@@ -250,8 +298,8 @@ pub mod state {
 
         fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
             let src = array_ref![src, 0, VotingState::LEN];
-            let (is_initialized, voting_owner, voting_started, voting_ends, bump) =
-                array_refs![src, 1, 32, 8, 8, 1];
+            let (discriminant, is_initialized, voting_owner, voting_started, voting_ends, bump) =
+                array_refs![src, 1, 1, 32, 8, 8, 1];
 
             let is_initialized = match is_initialized {
                 [0] => false,
@@ -260,8 +308,14 @@ pub mod state {
             };
 
             let bump = bump[0];
+            let discriminant = discriminant[0];
+
+            if is_initialized && discriminant != VOTINGSTATE {
+                return Err(JanecekError::DiscriminantMismatch.into());
+            }
 
             Ok(VotingState {
+                discriminant,
                 is_initialized,
                 voting_owner: Pubkey::new_from_array(*voting_owner),
                 voting_started: i64::from_le_bytes(*voting_started),
@@ -272,6 +326,7 @@ pub mod state {
     }
 
     pub struct VotingOwner {
+        pub discriminant: u8,
         pub is_initialized: bool,
         pub owner: Pubkey,
         pub voting_state: Pubkey,
@@ -285,7 +340,8 @@ pub mod state {
 
     impl Sealed for VotingOwner {}
     impl Pack for VotingOwner {
-        const LEN: usize = 1    // is initialzed
+        const LEN: usize = 1    // discriminant
+        + 1                     // is initialzed
         + 32                    // initializer
         + 32                    // voting state
         +1; // bump
@@ -293,16 +349,18 @@ pub mod state {
         fn pack_into_slice(&self, dst: &mut [u8]) {
             let dst = array_mut_ref![dst, 0, VotingOwner::LEN];
 
-            let (is_initialized_dst, initializer_dst, voting_state_dst, bump_dst) =
-                mut_array_refs![dst, 1, 32, 32, 1];
+            let (discriminant_dst, is_initialized_dst, initializer_dst, voting_state_dst, bump_dst) =
+                mut_array_refs![dst, 1, 1, 32, 32, 1];
 
             let VotingOwner {
+                discriminant,
                 is_initialized,
                 owner,
                 voting_state,
                 bump,
             } = self;
 
+            discriminant_dst[0] = *discriminant;
             is_initialized_dst[0] = *is_initialized as u8;
             initializer_dst.copy_from_slice(owner.as_ref());
             voting_state_dst.copy_from_slice(voting_state.as_ref());
@@ -311,7 +369,8 @@ pub mod state {
 
         fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
             let src = array_ref![src, 0, VotingOwner::LEN];
-            let (is_initialized, owner, voting_state, bump) = array_refs![src, 1, 32, 32, 1];
+            let (discriminant, is_initialized, owner, voting_state, bump) =
+                array_refs![src, 1, 1, 32, 32, 1];
 
             let is_initialized = match is_initialized {
                 [0] => false,
@@ -320,8 +379,12 @@ pub mod state {
             };
 
             let bump = bump[0];
-
+            let discriminant = discriminant[0];
+            if is_initialized && discriminant != VOTINGOWNER {
+                return Err(JanecekError::DiscriminantMismatch.into());
+            }
             Ok(VotingOwner {
+                discriminant,
                 is_initialized,
                 owner: Pubkey::new_from_array(*owner),
                 voting_state: Pubkey::new_from_array(*voting_state),

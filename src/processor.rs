@@ -1,6 +1,6 @@
 use borsh::BorshDeserialize;
 
-use crate::state::state::{Party, Voter, VotingOwner, VotingState};
+use crate::state::state::{Party, Voter, VotingOwner, VotingState,VOTINGSTATE,VOTINGOWNER,PARTY,VOTER};
 use crate::{error::JanecekError, instruction::instruction};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -263,12 +263,14 @@ impl Processor {
         }
 
         // update owner state
+        owner_state.discriminant = VOTINGOWNER;
         owner_state.is_initialized = true;
         owner_state.owner = *author.key;
         owner_state.voting_state = *pda_state.key;
         owner_state.bump = bump_owner;
 
         // update voting state
+        state_state.discriminant = VOTINGSTATE;
         state_state.is_initialized = true;
         state_state.voting_owner = *pda_owner.key;
 
@@ -438,6 +440,7 @@ impl Processor {
         }
 
         // create party state
+        party_state.discriminant = PARTY; 
         party_state.is_initialized = true;
         party_state.author = *author.key;
         party_state.voting_state = *pda_state.key;
@@ -635,6 +638,7 @@ impl Processor {
         Self::check_voting_end(&voting_state)?;
 
         // update voter data
+        voter_state.discriminant = VOTER;
         voter_state.is_initialized = true;
         voter_state.author = *author.key;
         voter_state.voting_state = *pda_state.key;
