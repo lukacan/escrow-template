@@ -7,7 +7,7 @@
 - <u>One party can receive only 1 positive vote from the voter, no restriction for negative vote (can spent negative vote to party you voted positive)</u>
 - <u>Voting ends 7 days after deployment</u>
 - <u>Everyone can see estimated time to the end (in seconds)</u>
-- <u>Everyone can vote and see vote results live, but you have to be registered as voter</u>
+- <u>Everyone can vote and see vote results live</u>
 
 ## 🍉***Owner***
 - **Voting owner** = PDA derived from "voting_owner" and author`s public key.
