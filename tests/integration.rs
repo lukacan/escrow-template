@@ -683,9 +683,9 @@ fn happy_path6() {
                 AccountMeta::new_readonly(initializer.pubkey(), false), // owner
                 AccountMeta::new_readonly(pda_owner, false), // voting owner
                 AccountMeta::new_readonly(pda_state, false), // voting state
-                AccountMeta::new(pda_voter, false),     // voter
+                AccountMeta::new(pda_voter, false),      // voter
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new(alice.pubkey(), true),      // fake signer
+                AccountMeta::new(alice.pubkey(), true), // fake signer
             ],
             data: instruction_data,
         }],
@@ -698,5 +698,74 @@ fn happy_path6() {
         rpc_client.send_and_confirm_transaction(&transaction),
         99,
         Some(InstructionError::PrivilegeEscalation),
+    );
+}
+
+#[test]
+fn happy_path7() {
+    let mut testvalgen = TestValidatorGenesis::default();
+    // solana_logger::setup_with_default("solana_program_runtime=debug");
+    // solana_logger::setup_with_default("solana_runtime::message=debug");
+
+    let initializer = add_account(&mut testvalgen);
+    let alice = add_account(&mut testvalgen);
+
+    let (test_validator, _payer) = testvalgen
+        .add_program("target/deploy/bpf_program_template", id())
+        .start();
+
+    let rpc_client = test_validator.get_rpc_client();
+
+    initialize(&rpc_client, &initializer, 0, None);
+
+    let party_name = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let party_name_spoofed = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    let blockhash = rpc_client.get_latest_blockhash().unwrap();
+
+    let (pda_owner, bump_owner) =
+        Pubkey::find_program_address(&[b"voting_owner", initializer.pubkey().as_ref()], &id());
+
+    let (pda_state, bump_state) =
+        Pubkey::find_program_address(&[b"voting_state", pda_owner.as_ref()], &id());
+
+    let (pda_party, bump_party) =
+        Pubkey::find_program_address(&[party_name.as_bytes(), pda_state.as_ref()], &id());
+
+    let mut instruction_data = vec![
+        1u8,
+        bump_owner,
+        bump_state,
+        bump_party,
+        party_name_spoofed.chars().count() as u8,
+        0u8,
+        0u8,
+        0u8,
+    ];
+    for byte in party_name_spoofed.as_bytes() {
+        instruction_data.push(*byte);
+    }
+
+    let mut transaction = Transaction::new_with_payer(
+        &[Instruction {
+            program_id: id(),
+            accounts: vec![
+                AccountMeta::new(alice.pubkey(), true), // persone that wants to create party
+                AccountMeta::new_readonly(initializer.pubkey(), true), // owner
+                AccountMeta::new_readonly(pda_owner, false), // voting owner
+                AccountMeta::new_readonly(pda_state, false), // voting state
+                AccountMeta::new(pda_party, false),     // party
+                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+            ],
+            data: instruction_data,
+        }],
+        Some(&alice.pubkey()),
+    );
+    transaction.sign(&[&alice, &initializer], blockhash);
+
+    compare_error(
+        rpc_client.send_and_confirm_transaction(&transaction),
+        ProgramError::InvalidInstructionData.into(),
+        None,
     );
 }

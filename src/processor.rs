@@ -1,3 +1,4 @@
+use crate::instruction::instruction::{Initialize, CreateParty, CreateVoter, Vote};
 use crate::state::state::{
     Party, Voter, VotingOwner, VotingState, PARTY, VOTER, VOTINGOWNER, VOTINGSTATE, NAME_LENGTH,
 };
@@ -81,6 +82,10 @@ impl Processor {
         accounts: &[AccountInfo],
         ix_data: &[u8],
     ) -> ProgramResult {
+        if ix_data.len() > Initialize::LEN{
+            return Err(ProgramError::InvalidInstructionData);
+        }
+
         let ix = instruction::Initialize::deserialize(&mut &ix_data[..])
             .map_err(|_| ProgramError::InvalidInstructionData)?;
 
@@ -295,6 +300,10 @@ impl Processor {
         accounts: &[AccountInfo],
         ix_data: &[u8],
     ) -> ProgramResult {
+
+        if ix_data.len() > CreateParty::LEN{
+            return Err(ProgramError::InvalidInstructionData);
+        }
         let ix = instruction::CreateParty::deserialize(&mut &ix_data[..])
             .map_err(|_| ProgramError::InvalidInstructionData)?;
 
@@ -304,6 +313,9 @@ impl Processor {
             bump_party,
             name,
         } = ix;
+        if name.chars().count() > NAME_LENGTH{
+            return Err(ProgramError::InvalidInstructionData);
+        }
 
         let accounts_iter = &mut accounts.iter();
 
@@ -444,9 +456,7 @@ impl Processor {
         // this probably should not happen as pda will fall if seed have length
         // longer than 32 bytes, but double check the length of name.
         // later in functions, unpack checks name length
-        if name.chars().count() > NAME_LENGTH{
-            return Err(ProgramError::InvalidInstructionData);
-        }
+
 
         // create party state
         party_state.discriminant = PARTY;
@@ -488,6 +498,9 @@ impl Processor {
         accounts: &[AccountInfo],
         ix_data: &[u8],
     ) -> ProgramResult {
+        if ix_data.len() > CreateVoter::LEN{
+            return Err(ProgramError::InvalidInstructionData);
+        }
         let ix = instruction::CreateVoter::deserialize(&mut &ix_data[..])
             .map_err(|_| ProgramError::InvalidInstructionData)?;
 
@@ -686,6 +699,9 @@ impl Processor {
         accounts: &[AccountInfo],
         ix_data: &[u8],
     ) -> ProgramResult {
+        if ix_data.len() > Vote::LEN{
+            return Err(ProgramError::InvalidInstructionData);
+        }
         let ix = instruction::Vote::deserialize(&mut &ix_data[..])
             .map_err(|_| ProgramError::InvalidInstructionData)?;
 
@@ -762,6 +778,9 @@ impl Processor {
         accounts: &[AccountInfo],
         ix_data: &[u8],
     ) -> ProgramResult {
+        if ix_data.len() > Vote::LEN{
+            return Err(ProgramError::InvalidInstructionData);
+        }
         let ix = instruction::Vote::deserialize(&mut &ix_data[..])
             .map_err(|_| ProgramError::InvalidInstructionData)?;
 
