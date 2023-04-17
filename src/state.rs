@@ -4,7 +4,7 @@ use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 use arrayref::{array_mut_ref, array_ref, array_refs, mut_array_refs};
 
 pub mod state {
-    const NAME_LENGTH: usize = 32;
+    pub const NAME_LENGTH: usize = 32;
 
     use solana_program::program_pack::{IsInitialized, Pack, Sealed};
 
@@ -107,7 +107,7 @@ pub mod state {
             };
 
             if is_initialized && name_len_ > 32 {
-                return Err(JanecekError::StringTooLong.into());
+                return Err(ProgramError::InvalidInstructionData);
             }
             if is_initialized && discriminant != PARTY {
                 return Err(JanecekError::DiscriminantMismatch.into());

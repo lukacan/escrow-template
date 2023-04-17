@@ -38,7 +38,7 @@
 - ✅**System Program ID**
 - ✅**Writable check**
 - ✅**PDAs and Bumps check**
-- ✅**Rent exempt**
+- ✅**Rent exempt - State/Owner**
 - ✅**Reinitialization check**
 - ✅**Addition overflow check**
 - ✅**Read only accounts**
@@ -48,7 +48,7 @@
 - ✅**System Program ID**
 - ✅**Writable check**
 - ✅**PDAs and Bumps check**
-- ✅**Rent exempt**
+- ✅**Rent exempt - State/Owner/Party**
 - ✅**Reinitialization check**
 - ✅**Not Yet initialized check**
 - ✅**Owner/Voting Owner/Voting State corresponds**
@@ -61,7 +61,7 @@
 - ✅**System Program ID**
 - ✅**Writable check**
 - ✅**PDAs and Bumps check**
-- ✅**Rent exempt**
+- ✅**Rent exempt - State/Owner/Voter**
 - ✅**Reinitialization check**
 - ✅**Not Yet initialized check**
 - ✅**Owner/Voting Owner/Voting State corresponds**
@@ -85,6 +85,7 @@
 - ✅**Negative vote after both positive spent**
 - ✅**Bumps inside accounts check**
 - ✅**Read only accounts**
+- ✅**Rent exempt - State/Owner/Party/Voter**
 
 
 ## 🥥***Security checks***

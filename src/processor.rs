@@ -1,12 +1,14 @@
-use borsh::BorshDeserialize;
-
-use crate::state::state::{Party, Voter, VotingOwner, VotingState,VOTINGSTATE,VOTINGOWNER,PARTY,VOTER};
+use crate::state::state::{
+    Party, Voter, VotingOwner, VotingState, PARTY, VOTER, VOTINGOWNER, VOTINGSTATE, NAME_LENGTH,
+};
 use crate::{error::JanecekError, instruction::instruction};
+use borsh::BorshDeserialize;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     clock::Clock,
     entrypoint::ProgramResult,
     msg,
+    program_error::ProgramError,
     program_pack::{IsInitialized, Pack},
     pubkey::Pubkey,
     rent::Rent,
@@ -24,20 +26,17 @@ impl Processor {
         accounts: &[AccountInfo],
         instruction_data: &[u8],
     ) -> ProgramResult {
-        Self::try_entry(program_id, accounts, instruction_data).map_err(|e| {
-            //e.log();
-            e.into()
-        })
+        Self::try_entry(program_id, accounts, instruction_data)
     }
     fn try_entry(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
         // check if program ID is correct
         if *program_id != id() {
-            return Err(JanecekError::ProgramIDMismatch.into());
+            return Err(ProgramError::IncorrectProgramId);
         }
 
         // check if data contains at least 1 byte, so function can be decoded
         if data.len() < 1 {
-            return Err(JanecekError::InvalidInstruction.into());
+            return Err(ProgramError::InvalidInstructionData);
         }
         Self::dispatch(program_id, accounts, data)
     }
@@ -73,7 +72,7 @@ impl Processor {
                 msg!("Instruction: VoteNegative");
                 Self::process_vote_negative(program_id, accounts, ix_data)
             }
-            _ => Err(JanecekError::InvalidInstruction.into()),
+            _ => Err(ProgramError::InvalidInstructionData),
         }
     }
 
@@ -83,7 +82,7 @@ impl Processor {
         ix_data: &[u8],
     ) -> ProgramResult {
         let ix = instruction::Initialize::deserialize(&mut &ix_data[..])
-            .map_err(|_| JanecekError::InstructionDidNotDeserialize)?;
+            .map_err(|_| ProgramError::InvalidInstructionData)?;
 
         let instruction::Initialize {
             bump_owner,
@@ -209,17 +208,17 @@ impl Processor {
 
         // SIGNER CHECK
         if !author.is_signer {
-            return Err(JanecekError::AccountNotSigner.into());
+            return Err(ProgramError::MissingRequiredSignature);
         }
 
         // PROGRAM OWNERS CHECK
         if *pda_owner.owner != id() || *pda_state.owner != id() {
-            return Err(JanecekError::AccountOwnerMismatch.into());
+            return Err(ProgramError::IllegalOwner);
         }
 
         // SYSTEM PROGRAM ID
         if *system_program.key != solana_program::system_program::id() {
-            return Err(JanecekError::SystemIDMismatch.into());
+            return Err(ProgramError::IncorrectProgramId);
         }
 
         // writable as payer
@@ -238,18 +237,18 @@ impl Processor {
 
         // check provided PDAs and bumps match
         if pda_owner_ != *pda_owner.key || bump_owner_ != bump_owner {
-            return Err(JanecekError::PdaMismatch.into());
+            return Err(ProgramError::InvalidSeeds);
         }
         if pda_state_ != *pda_state.key || bump_state_ != bump_state {
-            return Err(JanecekError::PdaMismatch.into());
+            return Err(ProgramError::InvalidSeeds);
         }
 
         // double check rent exempt
         if !rent.is_exempt(pda_state.lamports(), pda_state.try_data_len()?) {
-            return Err(JanecekError::ConstraintRentExempt.into());
+            return Err(ProgramError::AccountNotRentExempt);
         }
         if !rent.is_exempt(pda_owner.lamports(), pda_owner.try_data_len()?) {
-            return Err(JanecekError::ConstraintRentExempt.into());
+            return Err(ProgramError::AccountNotRentExempt);
         }
 
         // update owner and state
@@ -259,7 +258,7 @@ impl Processor {
 
         // CHECK ALREADY INITIALIZED ACCOUNTS
         if owner_state.is_initialized() || state_state.is_initialized() {
-            return Err(JanecekError::AccountAlreadyInitialized.into());
+            return Err(ProgramError::AccountAlreadyInitialized);
         }
 
         // update owner state
@@ -297,7 +296,7 @@ impl Processor {
         ix_data: &[u8],
     ) -> ProgramResult {
         let ix = instruction::CreateParty::deserialize(&mut &ix_data[..])
-            .map_err(|_| JanecekError::InstructionDidNotDeserialize)?;
+            .map_err(|_| ProgramError::InvalidInstructionData)?;
 
         let instruction::CreateParty {
             bump_owner,
@@ -374,17 +373,17 @@ impl Processor {
 
         // SIGNER CHECK
         if !owner.is_signer || !author.is_signer {
-            return Err(JanecekError::AccountNotSigner.into());
+            return Err(ProgramError::MissingRequiredSignature);
         }
 
         // PROGRAM OWNERS CHECK
         if *pda_owner.owner != id() || *pda_state.owner != id() || *pda_party.owner != id() {
-            return Err(JanecekError::AccountOwnerMismatch.into());
+            return Err(ProgramError::IllegalOwner);
         }
 
         // SYSTEM PROGRAM ID
         if *system_program.key != solana_program::system_program::id() {
-            return Err(JanecekError::SystemIDMismatch.into());
+            return Err(ProgramError::IncorrectProgramId);
         }
 
         // Any account that may be mutated by the program during execution, either its
@@ -405,8 +404,11 @@ impl Processor {
         }
 
         // CHECK RENT EXEMPT
-        if !rent.is_exempt(pda_party.lamports(), pda_party.try_data_len()?) {
-            return Err(JanecekError::ConstraintRentExempt.into());
+        if !rent.is_exempt(pda_party.lamports(), pda_party.try_data_len()?)
+            || !rent.is_exempt(pda_owner.lamports(), pda_owner.try_data_len()?)
+            || !rent.is_exempt(pda_state.lamports(), pda_state.try_data_len()?)
+        {
+            return Err(ProgramError::AccountNotRentExempt);
         }
 
         // deserialize data and check if both are initialized and if owner match
@@ -418,11 +420,11 @@ impl Processor {
 
         // CHECK ALREADY INITIALIZED ACCOUNTS
         if party_state.is_initialized() {
-            return Err(JanecekError::AccountAlreadyInitialized.into());
+            return Err(ProgramError::AccountAlreadyInitialized);
         }
         // CHECK NOT YET INITIALIZED ACCOUNTS
         if !owner_state.is_initialized() || !voting_state.is_initialized() {
-            return Err(JanecekError::AccountNotInitialized.into());
+            return Err(ProgramError::UninitializedAccount);
         }
 
         Self::check_add_context(
@@ -439,8 +441,15 @@ impl Processor {
             return Err(JanecekError::VotingEnded.into());
         }
 
+        // this probably should not happen as pda will fall if seed have length
+        // longer than 32 bytes, but double check the length of name.
+        // later in functions, unpack checks name length
+        if name.chars().count() > NAME_LENGTH{
+            return Err(ProgramError::InvalidInstructionData);
+        }
+
         // create party state
-        party_state.discriminant = PARTY; 
+        party_state.discriminant = PARTY;
         party_state.is_initialized = true;
         party_state.author = *author.key;
         party_state.voting_state = *pda_state.key;
@@ -454,19 +463,19 @@ impl Processor {
             || bump_party_ != bump_party
             || party_state.bump != bump_party
         {
-            return Err(JanecekError::PdaMismatch.into());
+            return Err(ProgramError::InvalidSeeds);
         }
         if pda_owner_ != *pda_owner.key
             || bump_owner_ != bump_owner
             || owner_state.bump != bump_owner
         {
-            return Err(JanecekError::PdaMismatch.into());
+            return Err(ProgramError::InvalidSeeds);
         }
         if pda_state_ != *pda_state.key
             || bump_state_ != bump_state
             || voting_state.bump != bump_state
         {
-            return Err(JanecekError::PdaMismatch.into());
+            return Err(ProgramError::InvalidSeeds);
         }
 
         Party::pack(party_state, &mut &mut pda_party.data.borrow_mut()[..])?;
@@ -480,7 +489,7 @@ impl Processor {
         ix_data: &[u8],
     ) -> ProgramResult {
         let ix = instruction::CreateVoter::deserialize(&mut &ix_data[..])
-            .map_err(|_| JanecekError::InstructionDidNotDeserialize)?;
+            .map_err(|_| ProgramError::InvalidInstructionData)?;
 
         let instruction::CreateVoter {
             bump_owner,
@@ -578,16 +587,16 @@ impl Processor {
 
         // SIGNER CHECK
         if !author.is_signer {
-            return Err(JanecekError::AccountNotSigner.into());
+            return Err(ProgramError::MissingRequiredSignature);
         }
         // PROGRAM OWNERS CHECK
         if *pda_owner.owner != id() || *pda_state.owner != id() || *pda_voter.owner != id() {
-            return Err(JanecekError::AccountOwnerMismatch.into());
+            return Err(ProgramError::IllegalOwner);
         }
 
         // SYSTEM PROGRAM ID
         if *system_program.key != solana_program::system_program::id() {
-            return Err(JanecekError::SystemIDMismatch.into());
+            return Err(ProgramError::IncorrectProgramId);
         }
 
         // MUTABLES CHECK
@@ -606,8 +615,11 @@ impl Processor {
         }
 
         // CHECK RENT EXEMPT
-        if !rent.is_exempt(pda_voter.lamports(), pda_voter.try_data_len()?) {
-            return Err(JanecekError::ConstraintRentExempt.into());
+        if !rent.is_exempt(pda_voter.lamports(), pda_voter.try_data_len()?)
+            || !rent.is_exempt(pda_owner.lamports(), pda_owner.try_data_len()?)
+            || !rent.is_exempt(pda_state.lamports(), pda_state.try_data_len()?)
+        {
+            return Err(ProgramError::AccountNotRentExempt);
         }
 
         // deserialize data and check if both are initialized and if owner match
@@ -619,12 +631,12 @@ impl Processor {
 
         // CHECK ALREADY INITIALIZED ACCOUNTS
         if voter_state.is_initialized() {
-            return Err(JanecekError::AccountAlreadyInitialized.into());
+            return Err(ProgramError::AccountAlreadyInitialized);
         }
 
         // CHECK NOT YET INITIALIZED ACCOUNTS
         if !owner_state.is_initialized() || !voting_state.is_initialized() {
-            return Err(JanecekError::AccountNotInitialized.into());
+            return Err(ProgramError::UninitializedAccount);
         }
 
         Self::check_add_context(
@@ -650,19 +662,19 @@ impl Processor {
             || bump_voter_ != bump_voter
             || voter_state.bump != bump_voter
         {
-            return Err(JanecekError::PdaMismatch.into());
+            return Err(ProgramError::InvalidSeeds);
         }
         if pda_owner_ != *pda_owner.key
             || bump_owner_ != bump_owner
             || owner_state.bump != bump_owner
         {
-            return Err(JanecekError::PdaMismatch.into());
+            return Err(ProgramError::InvalidSeeds);
         }
         if pda_state_ != *pda_state.key
             || bump_state_ != bump_state
             || voting_state.bump != bump_state
         {
-            return Err(JanecekError::PdaMismatch.into());
+            return Err(ProgramError::InvalidSeeds);
         }
 
         Voter::pack(voter_state, &mut &mut pda_voter.data.borrow_mut()[..])?;
@@ -675,7 +687,7 @@ impl Processor {
         ix_data: &[u8],
     ) -> ProgramResult {
         let ix = instruction::Vote::deserialize(&mut &ix_data[..])
-            .map_err(|_| JanecekError::InstructionDidNotDeserialize)?;
+            .map_err(|_| ProgramError::InvalidInstructionData)?;
 
         let accounts_iter = &mut accounts.iter();
 
@@ -751,7 +763,7 @@ impl Processor {
         ix_data: &[u8],
     ) -> ProgramResult {
         let ix = instruction::Vote::deserialize(&mut &ix_data[..])
-            .map_err(|_| JanecekError::InstructionDidNotDeserialize)?;
+            .map_err(|_| ProgramError::InvalidInstructionData)?;
 
         let accounts_iter = &mut accounts.iter();
 
@@ -845,6 +857,15 @@ impl Processor {
             program_id,
         );
 
+        let rent = Rent::get()?;
+        if !rent.is_exempt(pda_voter.lamports(), pda_voter.try_data_len()?)
+            || !rent.is_exempt(pda_owner.lamports(), pda_owner.try_data_len()?)
+            || !rent.is_exempt(pda_state.lamports(), pda_state.try_data_len()?)
+            || !rent.is_exempt(pda_party.lamports(), pda_party.try_data_len()?)
+        {
+            return Err(ProgramError::AccountNotRentExempt);
+        }
+
         let voter_state = Voter::unpack(&pda_voter.data.borrow_mut())?;
 
         let party_state = Party::unpack(&pda_party.data.borrow_mut())?;
@@ -855,7 +876,7 @@ impl Processor {
 
         // SIGNER CHECK
         if !author.is_signer {
-            return Err(JanecekError::AccountNotSigner.into());
+            return Err(ProgramError::MissingRequiredSignature);
         }
         // PROGRAM OWNERS CHECK
         if *pda_owner.owner != id()
@@ -863,7 +884,7 @@ impl Processor {
             || *pda_party.owner != id()
             || *pda_voter.owner != id()
         {
-            return Err(JanecekError::AccountOwnerMismatch.into());
+            return Err(ProgramError::IllegalOwner);
         }
 
         // MUTABLES CHECK
@@ -885,25 +906,25 @@ impl Processor {
             || bump_owner_ != ix_vote.bump_owner
             || owner_state.bump != ix_vote.bump_owner
         {
-            return Err(JanecekError::PdaMismatch.into());
+            return Err(ProgramError::InvalidSeeds);
         }
         if pda_state_ != *pda_state.key
             || bump_state_ != ix_vote.bump_state
             || voting_state.bump != ix_vote.bump_state
         {
-            return Err(JanecekError::PdaMismatch.into());
+            return Err(ProgramError::InvalidSeeds);
         }
         if pda_voter_ != *pda_voter.key
             || bump_voter_ != ix_vote.bump_voter
             || voter_state.bump != ix_vote.bump_voter
         {
-            return Err(JanecekError::PdaMismatch.into());
+            return Err(ProgramError::InvalidSeeds);
         }
         if pda_party_ != *pda_party.key
             || bump_party_ != ix_vote.bump_party
             || party_state.bump != ix_vote.bump_party
         {
-            return Err(JanecekError::PdaMismatch.into());
+            return Err(ProgramError::InvalidSeeds);
         }
         Self::check_vote_context(
             &owner_state,
@@ -953,13 +974,13 @@ impl Processor {
         pda_owner: &Pubkey,
         pda_state: &Pubkey,
     ) -> ProgramResult {
-        // CHECK NOT YET INITIALIZED ACCOUNTS
+        // CHECK NOT YET INITIALIZED ACCOUNTS (unpack checks this, but why not double check)
         if !owner_state.is_initialized()
             || !voting_state.is_initialized()
             || !party_state.is_initialized()
             || !voter_state.is_initialized()
         {
-            return Err(JanecekError::AccountNotInitialized.into());
+            return Err(ProgramError::UninitializedAccount);
         }
 
         // check if author corresponds to voter

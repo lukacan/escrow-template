@@ -1,8 +1,10 @@
+use bpf_program_template::error::JanecekError;
 //#![cfg(feature = "test-bpf")]
 use solana_client::client_error::{ClientError, ClientErrorKind};
 use solana_client::rpc_client::RpcClient;
 use solana_program::instruction::InstructionError;
 use solana_program::native_token::LAMPORTS_PER_SOL;
+use solana_program::program_error::ProgramError;
 use solana_sdk::transaction::TransactionError;
 use solana_sdk::{
     account::AccountSharedData,
@@ -21,8 +23,9 @@ use {
 
 use assert_matches::assert_matches;
 
+
 declare_id!("Fnambs3f1XXoMmAVc94bf8t6JDAxmVkXz85XU4v2edph");
-fn initialize(rpc_client: &RpcClient, initializer: &Keypair, expected_err:u32) {
+fn initialize(rpc_client: &RpcClient, initializer: &Keypair, expected_err: u64) {
     let blockhash = rpc_client.get_latest_blockhash().unwrap();
 
     let (pda_owner, bump_owner) =
@@ -47,7 +50,10 @@ fn initialize(rpc_client: &RpcClient, initializer: &Keypair, expected_err:u32) {
         Some(&initializer.pubkey()),
     );
     transaction.sign(&[initializer], blockhash);
-    compare_error(rpc_client.send_and_confirm_transaction(&transaction), expected_err);
+    compare_error(
+        rpc_client.send_and_confirm_transaction(&transaction),
+        expected_err,
+    );
     //rpc_client.send_and_confirm_transaction(&transaction)
 }
 
@@ -56,7 +62,7 @@ fn create_party(
     initializer: &Keypair,
     person: &Keypair,
     party_name: &String,
-    expected_err:u32,
+    expected_err: u64,
 ) {
     let blockhash = rpc_client.get_latest_blockhash().unwrap();
 
@@ -100,11 +106,13 @@ fn create_party(
     );
     transaction.sign(&[person, initializer], blockhash);
 
-    //rpc_client.send_and_confirm_transaction(&transaction)
-    compare_error(rpc_client.send_and_confirm_transaction(&transaction), expected_err);
+    compare_error(
+        rpc_client.send_and_confirm_transaction(&transaction),
+        expected_err,
+    );
 }
 
-fn create_voter(rpc_client: &RpcClient, initializer: &Pubkey, voter: &Keypair,expected_err:u32) {
+fn create_voter(rpc_client: &RpcClient, initializer: &Pubkey, voter: &Keypair, expected_err: u64) {
     let blockhash = rpc_client.get_latest_blockhash().unwrap();
 
     let (pda_owner, bump_owner) =
@@ -138,7 +146,10 @@ fn create_voter(rpc_client: &RpcClient, initializer: &Pubkey, voter: &Keypair,ex
     transaction.sign(&[voter], blockhash);
 
     //rpc_client.send_and_confirm_transaction(&transaction)
-    compare_error(rpc_client.send_and_confirm_transaction(&transaction), expected_err);
+    compare_error(
+        rpc_client.send_and_confirm_transaction(&transaction),
+        expected_err,
+    );
 }
 
 fn vote_positive(
@@ -146,7 +157,7 @@ fn vote_positive(
     initializer: &Pubkey,
     voter: &Keypair,
     party_name: &String,
-    expected_err:u32,
+    expected_err: u64,
 ) {
     let blockhash = rpc_client.get_latest_blockhash().unwrap();
 
@@ -194,7 +205,10 @@ fn vote_positive(
         Some(&voter.pubkey()),
     );
     transaction.sign(&[voter], blockhash);
-    compare_error(rpc_client.send_and_confirm_transaction(&transaction), expected_err);
+    compare_error(
+        rpc_client.send_and_confirm_transaction(&transaction),
+        expected_err,
+    );
     //rpc_client.send_and_confirm_transaction(&transaction)
 }
 
@@ -203,7 +217,7 @@ fn vote_negative(
     initializer: &Pubkey,
     voter: &Keypair,
     party_name: &String,
-    expected_err:u32,
+    expected_err: u64,
 ) {
     let blockhash = rpc_client.get_latest_blockhash().unwrap();
 
@@ -252,7 +266,10 @@ fn vote_negative(
         Some(&voter.pubkey()),
     );
     transaction.sign(&[voter], blockhash);
-    compare_error(rpc_client.send_and_confirm_transaction(&transaction), expected_err);
+    compare_error(
+        rpc_client.send_and_confirm_transaction(&transaction),
+        expected_err,
+    );
     //rpc_client.send_and_confirm_transaction(&transaction)
 }
 
@@ -267,17 +284,19 @@ fn add_account(testvalgen: &mut TestValidatorGenesis) -> Keypair {
     return alice;
 }
 
-fn compare_error(result: Result<Signature, ClientError>, expected_value: u32) {
+fn compare_error(result: Result<Signature, ClientError>, expected_value: u64) {
+    let program_err = InstructionError::from(expected_value);
     match result.err() {
         Some(error) => match error.kind() {
             ClientErrorKind::RpcError(_) => match error.get_transaction_error().unwrap() {
                 TransactionError::InstructionError(_x, y) => match y {
                     InstructionError::Custom(z) => {
-                        assert_eq!(z, expected_value)
+                        println!("Failed5 with {}", y);
+                        assert_eq!(z, expected_value as u32)
                     }
                     _ => {
                         println!("Failed4 with {}", y);
-                        assert_eq!(false, true);
+                        assert_eq!(y, program_err)
                     }
                 },
                 _ => {
@@ -286,12 +305,13 @@ fn compare_error(result: Result<Signature, ClientError>, expected_value: u32) {
                 }
             },
             _ => {
-                println!("Failed2");
+                println!("Expected to return error {}",expected_value);
                 assert_eq!(false, true);
             }
         },
         None => {
-            assert_eq!(true, true)
+            println!("Expected to return error {}",expected_value);
+            assert_eq!(expected_value, 0)
         }
     }
 }
@@ -316,25 +336,43 @@ fn test_basic() {
     let alice_party: String = String::from("Alice Party");
     let diana_party: String = String::from("Diana Party");
 
-    initialize(&rpc_client, &initializer,0);
+    initialize(&rpc_client, &initializer, 0);
 
-    create_party(&rpc_client, &initializer, &alice, &alice_party,0);
+    create_party(&rpc_client, &initializer, &alice, &alice_party, 0);
 
-    create_party(&rpc_client, &initializer, &diana, &diana_party,0);
+    create_party(&rpc_client, &initializer, &diana, &diana_party, 0);
 
-    create_voter(&rpc_client, &initializer.pubkey(), &bob,0);
+    create_voter(&rpc_client, &initializer.pubkey(), &bob, 0);
 
-    vote_positive(&rpc_client, &initializer.pubkey(), &bob, &alice_party,0);
+    vote_positive(&rpc_client, &initializer.pubkey(), &bob, &alice_party, 0);
 
-    vote_positive(&rpc_client, &initializer.pubkey(), &bob, &alice_party,19);
+    vote_positive(
+        &rpc_client,
+        &initializer.pubkey(),
+        &bob,
+        &alice_party,
+        JanecekError::NoBothPosSameParty.into(),
+    );
 
-    vote_negative(&rpc_client, &initializer.pubkey(), &bob, &alice_party,23);
+    vote_negative(
+        &rpc_client,
+        &initializer.pubkey(),
+        &bob,
+        &alice_party,
+        JanecekError::VoteNegativeConstrain.into(),
+    );
 
-    vote_positive(&rpc_client, &initializer.pubkey(), &bob, &diana_party,0);
+    vote_positive(&rpc_client, &initializer.pubkey(), &bob, &diana_party, 0);
 
-    vote_negative(&rpc_client, &initializer.pubkey(), &bob, &alice_party,0);
+    vote_negative(&rpc_client, &initializer.pubkey(), &bob, &alice_party, 0);
 
-    vote_negative(&rpc_client, &initializer.pubkey(), &bob, &alice_party,22);
+    vote_negative(
+        &rpc_client,
+        &initializer.pubkey(),
+        &bob,
+        &alice_party,
+        JanecekError::NoMoreVotes.into(),
+    );
 }
 
 #[test]
@@ -360,32 +398,41 @@ fn happy_path1() {
 
     let rpc_client = test_validator.get_rpc_client();
 
-    initialize(&rpc_client, &initializer,0);
+    initialize(&rpc_client, &initializer, 0);
 
-    create_party(&rpc_client, &initializer, &alice, &alice_party,0);
+    create_party(&rpc_client, &initializer, &alice, &alice_party, 0);
 
-    create_party(&rpc_client, &initializer, &michael, &michael_party,0);
+    create_party(&rpc_client, &initializer, &michael, &michael_party, 0);
 
-    create_party(&rpc_client, &initializer, &diana, &diana_party,0);
+    create_party(&rpc_client, &initializer, &diana, &diana_party, 0);
 
-    create_voter(&rpc_client, &initializer.pubkey(), &bob,0);
+    create_voter(&rpc_client, &initializer.pubkey(), &bob, 0);
 
-    vote_positive(&rpc_client, &initializer.pubkey(), &bob, &alice_party,0);
+    vote_positive(&rpc_client, &initializer.pubkey(), &bob, &alice_party, 0);
 
-    vote_positive(&rpc_client, &initializer.pubkey(), &bob, &michael_party,0);
+    vote_positive(&rpc_client, &initializer.pubkey(), &bob, &michael_party, 0);
 
-    vote_negative(&rpc_client, &initializer.pubkey(), &bob, &diana_party,0);
+    vote_negative(&rpc_client, &initializer.pubkey(), &bob, &diana_party, 0);
 
-    vote_positive(&rpc_client, &initializer.pubkey(), &bob, &diana_party,22);
+    vote_positive(
+        &rpc_client,
+        &initializer.pubkey(),
+        &bob,
+        &diana_party,
+        JanecekError::NoMoreVotes.into(),
+    );
 
-    vote_negative(&rpc_client, &initializer.pubkey(), &bob, &alice_party,22);
+    vote_negative(
+        &rpc_client,
+        &initializer.pubkey(),
+        &bob,
+        &alice_party,
+        JanecekError::NoMoreVotes.into(),
+    );
 }
 
 #[test]
 fn happy_path2() {
-    // solana_logger::setup_with_default("solana_program_runtime=debug");
-    // solana_logger::setup_with_default("solana_runtime::message=debug");
-
     let mut testvalgen = TestValidatorGenesis::default();
 
     let initializer = add_account(&mut testvalgen);
@@ -400,13 +447,19 @@ fn happy_path2() {
 
     let rpc_client = test_validator.get_rpc_client();
 
-    initialize(&rpc_client, &initializer,0);
+    initialize(&rpc_client, &initializer, 0);
 
-    create_party(&rpc_client, &initializer, &alice, &alice_party,0);
+    create_party(&rpc_client, &initializer, &alice, &alice_party, 0);
 
-    create_voter(&rpc_client, &initializer.pubkey(), &bob,0);
+    create_voter(&rpc_client, &initializer.pubkey(), &bob, 0);
 
-    vote_negative(&rpc_client, &initializer.pubkey(), &bob, &alice_party,23);
+    vote_negative(
+        &rpc_client,
+        &initializer.pubkey(),
+        &bob,
+        &alice_party,
+        JanecekError::VoteNegativeConstrain.into(),
+    );
 }
 
 #[test]
@@ -452,8 +505,10 @@ fn happy_path3() {
     transaction.sign(&[&alice], blockhash);
 
     // no instruction err
-    assert_matches!(rpc_client.send_and_confirm_transaction(&transaction),Err(_));
-
+    assert_matches!(
+        rpc_client.send_and_confirm_transaction(&transaction),
+        Err(_)
+    );
 }
 
 #[test]
@@ -461,7 +516,7 @@ fn happy_path4() {
     let mut testvalgen = TestValidatorGenesis::default();
 
     let initializer = add_account(&mut testvalgen);
-    let voter = add_account(&mut testvalgen);
+    let bob = add_account(&mut testvalgen);
 
     let (test_validator, _payer) = testvalgen
         .add_program("target/deploy/bpf_program_template", id())
@@ -478,27 +533,54 @@ fn happy_path4() {
         Pubkey::find_program_address(&[b"voting_state", pda_owner.as_ref()], &id());
 
     let (pda_voter, bump_voter) = Pubkey::find_program_address(
-        &[b"new_voter", voter.pubkey().as_ref(), pda_state.as_ref()],
+        &[b"new_voter", bob.pubkey().as_ref(), pda_state.as_ref()],
         &id(),
     );
 
     let instruction_data = vec![2u8, bump_owner, bump_state, bump_voter];
 
-    let mut transaction = Transaction::new_with_payer(
-        &[Instruction {
-            program_id: id(),
-            accounts: vec![
-                AccountMeta::new(voter.pubkey(), true), // persone that wants to be voter
-                AccountMeta::new_readonly(initializer.pubkey(), false), // owner
-                AccountMeta::new_readonly(pda_owner, false), // voting owner
-                AccountMeta::new_readonly(pda_state, false), // voting state
-                AccountMeta::new(pda_voter, false),     // voter
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
-            ],
-            data: instruction_data,
-        }],
-        Some(&voter.pubkey()),
-    );
-    transaction.sign(&[&voter], blockhash);
-    compare_error(rpc_client.send_and_confirm_transaction(&transaction), 7);
+    create_voter(&rpc_client, &initializer.pubkey(), &bob, ProgramError::IllegalOwner.into());
+
 }
+
+#[test]
+fn happy_path5() {
+    // seed longer than 32 bytes will throw error even before instraction
+    let mut testvalgen = TestValidatorGenesis::default();
+
+    let initializer = add_account(&mut testvalgen);
+    let _alice = add_account(&mut testvalgen);
+
+    let _alice_party: String = String::from("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+    let (test_validator, _payer) = testvalgen
+        .add_program("target/deploy/bpf_program_template", id())
+        .start();
+
+    let rpc_client = test_validator.get_rpc_client();
+
+    initialize(&rpc_client, &initializer, 0);
+
+    //create_party(&rpc_client, &initializer, &alice, &alice_party,12);
+}
+
+// #[test]
+// fn happy_path6() {
+//     // seed longer than 32 bytes will throw error even before instraction
+//     let mut testvalgen = TestValidatorGenesis::default();
+
+//     let initializer = add_account(&mut testvalgen);
+//     let _alice = add_account(&mut testvalgen);
+
+//     let _alice_party: String = String::from("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+//     let (test_validator, _payer) = testvalgen
+//         .add_program("target/deploy/bpf_program_template", id())
+//         .start();
+
+//     let rpc_client = test_validator.get_rpc_client();
+
+//     initialize(&rpc_client, &initializer, 0);
+
+//     //create_party(&rpc_client, &initializer, &alice, &alice_party,12);
+// }
