@@ -6,10 +6,10 @@ license = "WTFPL"
 publish = false
 
 [dependencies]
-solana-program = "1.10.31"
+solana-program = "1.13.7"
 thiserror = "1.0.35"
 borsh = "0.9.3"
-borsh-derive = "0.9.3"
+borsh-derive = "0.9.1"
 
 [features]
 test-bpf = []
@@ -17,11 +17,11 @@ test-bpf = []
 
 [dev-dependencies]
 assert_matches = "*"
-solana-logger = "1.10.31"
-solana-program-test = "1.10.31"
-solana-sdk = "1.10.31"
-solana-validator = "1.10.31"
-solana-client="1.10.31"
+solana-logger = "1.13.7"
+solana-program-test = "1.13.7"
+solana-sdk = "1.13.7"
+solana-validator = "1.13.7"
+solana-client="1.13.7"
 
 [lib]
 crate-type = ["cdylib", "lib"]
