@@ -7,7 +7,11 @@ use solana_program::{
 
 use crate::entrypoint::id;
 #[derive(Debug, BorshDeserialize, BorshSerialize)]
-
+pub enum VoteContext {
+    Positive,
+    Negative,
+}
+#[derive(Debug, BorshDeserialize, BorshSerialize)]
 pub enum JanecekInstruction {
     Initialize,
     CreateParty {
@@ -19,18 +23,12 @@ pub enum JanecekInstruction {
         bump_owner: u8,
         bump_state: u8,
     },
-    VotePositive {
+    Vote {
         bump_owner: u8,
         bump_state: u8,
         bump_voter: u8,
         bump_party: u8,
-        name: String,
-    },
-    VoteNegative {
-        bump_owner: u8,
-        bump_state: u8,
-        bump_voter: u8,
-        bump_party: u8,
+        vote_context: VoteContext,
         name: String,
     },
 }
@@ -129,11 +127,12 @@ pub fn vote_positive(initializer: Pubkey, voter_author: Pubkey, name: String) ->
             AccountMeta::new(voter, false),
             AccountMeta::new(party, false),
         ],
-        data: JanecekInstruction::VotePositive {
+        data: JanecekInstruction::Vote {
             bump_owner,
             bump_state,
             bump_voter,
             bump_party,
+            vote_context: VoteContext::Positive,
             name,
         }
         .try_to_vec()
@@ -157,11 +156,12 @@ pub fn vote_negative(initializer: Pubkey, voter_author: Pubkey, name: String) ->
             AccountMeta::new(voter, false),
             AccountMeta::new(party, false),
         ],
-        data: JanecekInstruction::VoteNegative {
+        data: JanecekInstruction::Vote {
             bump_owner,
             bump_state,
             bump_voter,
             bump_party,
+            vote_context: VoteContext::Negative,
             name,
         }
         .try_to_vec()

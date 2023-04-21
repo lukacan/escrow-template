@@ -1,5 +1,5 @@
 use bpf_program_template::instruction::{
-    create_party, create_voter, get_owner_address, initialize,
+    create_party, create_voter, get_owner_address, initialize, vote_positive,
 };
 use solana_client::rpc_client::RpcClient;
 // #![cfg(feature = "test-sbf")]
@@ -68,6 +68,27 @@ fn create_voter_transaction(
 
     let mut transaction = Transaction::new_with_payer(
         &[create_voter(initializer.pubkey(), author.pubkey())],
+        Some(&author.pubkey()),
+    );
+
+    transaction.sign(&[author], blockhash);
+    rpc_client.send_and_confirm_transaction(&transaction)
+}
+
+fn create_vote_pos_transaction(
+    rpc_client: &RpcClient,
+    initializer: &Keypair,
+    author: &Keypair,
+    party_name: &str,
+) -> Result<solana_sdk::signature::Signature, solana_client::client_error::ClientError> {
+    let blockhash = rpc_client.get_latest_blockhash().unwrap();
+
+    let mut transaction = Transaction::new_with_payer(
+        &[vote_positive(
+            initializer.pubkey(),
+            author.pubkey(),
+            String::from(party_name),
+        )],
         Some(&author.pubkey()),
     );
 
@@ -180,6 +201,67 @@ fn test_create_voter_basic1() {
     assert_matches!(initialize_transaction(&rpc_client, &initializer), Ok(_));
     assert_matches!(
         create_voter_transaction(&rpc_client, &initializer, &bob),
+        Ok(_)
+    );
+}
+#[test]
+fn test_try_pos_vote_basic1() {
+    let mut testvalgen = init_env();
+    let initializer = add_account(&mut testvalgen);
+    let bob = add_account(&mut testvalgen);
+    let alice = add_account(&mut testvalgen);
+    let party_name = "Alice Party";
+
+    let (test_validator, _payer) = testvalgen.start();
+    let rpc_client = test_validator.get_rpc_client();
+
+    assert_matches!(initialize_transaction(&rpc_client, &initializer), Ok(_));
+    assert_matches!(
+        create_voter_transaction(&rpc_client, &initializer, &bob),
+        Ok(_)
+    );
+    assert_matches!(
+        create_party_transaction(&rpc_client, &initializer, &alice, party_name),
+        Ok(_)
+    );
+    assert_matches!(
+        create_vote_pos_transaction(&rpc_client, &initializer, &bob, party_name),
+        Ok(_)
+    );
+}
+
+#[test]
+fn test_try_pos_vote_basic2() {
+    let mut testvalgen = init_env();
+    let initializer = add_account(&mut testvalgen);
+    let bob = add_account(&mut testvalgen);
+    let alice = add_account(&mut testvalgen);
+    let ben = add_account(&mut testvalgen);
+    let party_alice = "Alice Party";
+    let party_ben = "Ben Party";
+
+    let (test_validator, _payer) = testvalgen.start();
+    let rpc_client = test_validator.get_rpc_client();
+
+    assert_matches!(initialize_transaction(&rpc_client, &initializer), Ok(_));
+    assert_matches!(
+        create_voter_transaction(&rpc_client, &initializer, &bob),
+        Ok(_)
+    );
+    assert_matches!(
+        create_party_transaction(&rpc_client, &initializer, &alice, party_alice),
+        Ok(_)
+    );
+    assert_matches!(
+        create_vote_pos_transaction(&rpc_client, &initializer, &bob, party_alice),
+        Ok(_)
+    );
+    assert_matches!(
+        create_party_transaction(&rpc_client, &initializer, &ben, party_ben),
+        Ok(_)
+    );
+    assert_matches!(
+        create_vote_pos_transaction(&rpc_client, &initializer, &bob, party_ben),
         Ok(_)
     );
 }

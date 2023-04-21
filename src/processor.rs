@@ -2,9 +2,11 @@ use crate::entrypoint::id;
 use crate::error::JanecekError;
 use crate::instruction::{
     get_owner_address, get_party_address, get_state_address, get_voter_address, JanecekInstruction,
+    VoteContext,
 };
 use crate::state::JanecekState;
 use borsh::{BorshDeserialize, BorshSerialize};
+use solana_program::msg;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     clock::Clock,
@@ -46,23 +48,22 @@ fn dispatch(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Progr
             bump_owner,
             bump_state,
         } => process_create_voter(program_id, accounts, bump_owner, bump_state),
-        JanecekInstruction::VotePositive {
+        JanecekInstruction::Vote {
             bump_owner,
             bump_state,
             bump_voter,
             bump_party,
+            vote_context,
             name,
-        } => process_vote_positive(
-            program_id, accounts, bump_owner, bump_state, bump_voter, bump_party, name,
-        ),
-        JanecekInstruction::VoteNegative {
+        } => process_vote(
+            program_id,
+            accounts,
             bump_owner,
             bump_state,
             bump_voter,
             bump_party,
+            vote_context,
             name,
-        } => process_vote_negative(
-            program_id, accounts, bump_owner, bump_state, bump_voter, bump_party, name,
         ),
     }
 }
@@ -609,13 +610,14 @@ fn process_create_voter(
         .unwrap();
     Ok(())
 }
-fn process_vote_positive(
+fn process_vote(
     _program_id: &Pubkey,
     accounts: &[AccountInfo],
     bump_owner_provided: u8,
     bump_state_provided: u8,
     bump_voter_provided: u8,
     bump_party_provided: u8,
+    vote_context: VoteContext,
     name: String,
 ) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
@@ -685,7 +687,7 @@ fn process_vote_positive(
         }
         _ => return Err(ProgramError::InvalidAccountData),
     };
-    match JanecekState::deserialize(&mut &(*pda_voter.data).borrow_mut()[..])? {
+    let voter = match JanecekState::deserialize(&mut &(*pda_voter.data).borrow_mut()[..])? {
         JanecekState::Voter {
             is_initialized,
             author,
@@ -703,172 +705,34 @@ fn process_vote_positive(
             let mut new_votes = num_votes;
             let mut new_pos1 = pos1;
             let mut new_pos2 = pos2;
-            try_vote_positive(&mut new_votes, &mut new_pos1, &mut new_pos2, pda_party)?;
+            let mut new_neg1 = neg1;
 
-            let voter = JanecekState::Voter {
+            match vote_context {
+                VoteContext::Negative => {
+                    try_vote_negative(&mut new_votes, &mut new_neg1, pda_party)?;
+                }
+                VoteContext::Positive => {
+                    try_vote_positive(&mut new_votes, &mut new_pos1, &mut new_pos2, pda_party)?;
+                }
+            }
+            JanecekState::Voter {
                 is_initialized,
                 author,
                 voting_state,
                 num_votes: new_votes,
                 pos1: new_pos1,
                 pos2: new_pos2,
-                neg1,
-                bump,
-            };
-            voter
-                .serialize(&mut &mut (*pda_voter.data).borrow_mut()[..])
-                .unwrap();
-        }
-        _ => return Err(ProgramError::InvalidAccountData),
-    };
-    match JanecekState::deserialize(&mut &(*pda_party.data).borrow_mut()[..])? {
-        JanecekState::Party {
-            is_initialized,
-            author,
-            voting_state,
-            created,
-            name,
-            votes,
-            bump,
-        } => {
-            try_uninitialized(is_initialized)?;
-            try_voting_state(pda_state, &voting_state)?;
-            try_bumps(bump_party_provided, bump_party_, bump)?;
-            let mut new_votes = votes;
-            try_increase_votes(&mut new_votes)?;
-            let party = JanecekState::Party {
-                is_initialized,
-                author,
-                voting_state,
-                created,
-                name,
-                votes: new_votes,
-                bump,
-            };
-            party
-                .serialize(&mut &mut (*pda_party.data).borrow_mut()[..])
-                .unwrap();
-        }
-        _ => return Err(ProgramError::InvalidAccountData),
-    };
-    Ok(())
-}
-
-fn process_vote_negative(
-    _program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    bump_owner_provided: u8,
-    bump_state_provided: u8,
-    bump_voter_provided: u8,
-    bump_party_provided: u8,
-    name: String,
-) -> ProgramResult {
-    if name.chars().count() > 32 {
-        return Err(ProgramError::InvalidInstructionData);
-    }
-    let accounts_iter = &mut accounts.iter();
-
-    let voter_author = next_account_info(accounts_iter)?;
-    try_signer(voter_author)?;
-
-    let owner = next_account_info(accounts_iter)?;
-
-    let pda_owner = next_account_info(accounts_iter)?;
-    let (pda_owner_, bump_owner_) = get_owner_address(*owner.key);
-    try_owner(pda_owner)?;
-    try_seeds(&pda_owner_, pda_owner.key)?;
-    try_rent_exempt(pda_owner)?;
-
-    let pda_state = next_account_info(accounts_iter)?;
-    let (pda_state_, bump_state_) = get_state_address(pda_owner_);
-    try_owner(pda_state)?;
-    try_seeds(&pda_state_, pda_state.key)?;
-    try_rent_exempt(pda_state)?;
-
-    let pda_voter = next_account_info(accounts_iter)?;
-    let (pda_voter_, bump_voter_) = get_voter_address(*voter_author.key, pda_state_);
-    try_owner(pda_voter)?;
-    try_seeds(&pda_voter_, pda_voter.key)?;
-    try_rent_exempt(pda_voter)?;
-
-    let pda_party = next_account_info(accounts_iter)?;
-    let (pda_party_, bump_party_) = get_party_address(&name, pda_state_);
-    try_owner(pda_party)?;
-    try_seeds(&pda_party_, pda_party.key)?;
-    try_rent_exempt(pda_party)?;
-
-    // ????
-    // try_writable(voter_author)?;
-    // try_writable(pda_voter)?;
-    // try_writable(pda_party)?;
-
-    match JanecekState::deserialize(&mut &(*pda_owner.data).borrow_mut()[..])? {
-        JanecekState::VotingOwner {
-            is_initialized,
-            author,
-            voting_state,
-            bump,
-        } => {
-            try_uninitialized(is_initialized)?;
-            try_author(owner, &author)?;
-            try_voting_state(pda_state, &voting_state)?;
-            try_bumps(bump_owner_provided, bump_owner_, bump)?;
-        }
-        _ => return Err(ProgramError::InvalidAccountData),
-    };
-    match JanecekState::deserialize(&mut &(*pda_state.data).borrow_mut()[..])? {
-        JanecekState::VotingState {
-            is_initialized,
-            voting_owner,
-            voting_started: _,
-            voting_ends,
-            bump,
-        } => {
-            try_uninitialized(is_initialized)?;
-            try_voting_owner(pda_owner, &voting_owner)?;
-            try_bumps(bump_state_provided, bump_state_, bump)?;
-            let clock: Clock = Clock::get()?;
-            let now = clock.unix_timestamp;
-            try_voting_ended(voting_ends, now)?;
-        }
-        _ => return Err(ProgramError::InvalidAccountData),
-    };
-    match JanecekState::deserialize(&mut &(*pda_voter.data).borrow_mut()[..])? {
-        JanecekState::Voter {
-            is_initialized,
-            author,
-            voting_state,
-            num_votes,
-            pos1,
-            pos2,
-            neg1,
-            bump,
-        } => {
-            try_uninitialized(is_initialized)?;
-            try_author(voter_author, &author)?;
-            try_voting_state(pda_state, &voting_state)?;
-            try_bumps(bump_voter_provided, bump_voter_, bump)?;
-            let mut new_votes = num_votes;
-            let mut new_neg1 = neg1;
-            try_vote_negative(&mut new_votes, &mut new_neg1, pda_party)?;
-
-            let voter = JanecekState::Voter {
-                is_initialized,
-                author,
-                voting_state,
-                num_votes: new_votes,
-                pos1,
-                pos2,
                 neg1: new_neg1,
                 bump,
-            };
-            voter
-                .serialize(&mut &mut (*pda_voter.data).borrow_mut()[..])
-                .unwrap();
+            }
         }
         _ => return Err(ProgramError::InvalidAccountData),
     };
-    match JanecekState::deserialize(&mut &(*pda_party.data).borrow_mut()[..])? {
+    voter
+        .serialize(&mut &mut (*pda_voter.data).borrow_mut()[..])
+        .unwrap();
+
+    let party = match JanecekState::deserialize(&mut &(*pda_party.data).borrow_mut()[..])? {
         JanecekState::Party {
             is_initialized,
             author,
@@ -882,8 +746,16 @@ fn process_vote_negative(
             try_voting_state(pda_state, &voting_state)?;
             try_bumps(bump_party_provided, bump_party_, bump)?;
             let mut new_votes = votes;
-            try_decrease_votes(&mut new_votes)?;
-            let party = JanecekState::Party {
+
+            match vote_context {
+                VoteContext::Negative => {
+                    try_decrease_votes(&mut new_votes)?;
+                }
+                VoteContext::Positive => {
+                    try_increase_votes(&mut new_votes)?;
+                }
+            }
+            JanecekState::Party {
                 is_initialized,
                 author,
                 voting_state,
@@ -891,12 +763,12 @@ fn process_vote_negative(
                 name,
                 votes: new_votes,
                 bump,
-            };
-            party
-                .serialize(&mut &mut (*pda_party.data).borrow_mut()[..])
-                .unwrap();
+            }
         }
         _ => return Err(ProgramError::InvalidAccountData),
     };
+    party
+        .serialize(&mut &mut (*pda_party.data).borrow_mut()[..])
+        .unwrap();
     Ok(())
 }
