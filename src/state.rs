@@ -55,7 +55,7 @@ pub enum VotesStates {
     Full,
 }
 impl JanecekState {
-    pub const NAME_LENGTH: usize = 32;
+    pub const NAME_LENGTH: usize = 32; // in bytes
     pub const LEN_PARTY: usize = size_of::<u8>()
         + size_of::<bool>()
         + size_of::<Pubkey>()

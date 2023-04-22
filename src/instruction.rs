@@ -7,28 +7,114 @@ use solana_program::{
 
 use crate::entrypoint::id;
 #[derive(Debug, BorshDeserialize, BorshSerialize)]
-pub enum VoteContext {
+pub enum VotePreference {
     Positive,
     Negative,
 }
 #[derive(Debug, BorshDeserialize, BorshSerialize)]
 pub enum JanecekInstruction {
+    /// Starts voting by initializing Voting State that is tied to Voting Owner, Voting State is automatically initialized
+    /// with 7 days deadline, that means, during this period of time, new Parties, new Voters can be added to this Voting
+    /// context same as Voting can be performed. After the deadline, no more Parties or Voters can be added to the current
+    /// Voting Context, same as no voting can be performed
+    ///
+    ///
+    /// Accounts expected:
+    ///
+    /// 0️⃣ `[signer]` The account of the person initializing the voting
+    ///
+    /// 1️⃣ `[writable]` Program Derived Address which serves as Voting Owner and is tied up to Voting State
+    ///
+    /// 2️⃣ `[writable]` Program Derived Address which serves as Voting State and is tied up to Voting Owner
+    ///
+    /// 4️⃣ `[]` The system program
     Initialize,
+    /// Creates Party in the specified Voting Context (Voting Owner and Voting State), party can be created only with
+    /// the consent of the owner (account that Initialized this Context). Party name has to be uniqe in this Voting Context
+    /// It is not allowed to create new Party after voting ended in the Context.
+    ///
+    ///
+    /// Accounts expected:
+    ///
+    /// 0️⃣ `[signer]` The account that wants to create new Party
+    ///
+    /// 1️⃣ `[signer]` Owner of the specified Voting Context
+    ///
+    /// 2️⃣ `[]` Program Derived Address which serves as Voting Owner and is tied up to Voting State
+    ///
+    /// 3️⃣ `[]` Program Derived Address which serves as Voting State and is tied up to Voting Owner
+    ///
+    /// 4️⃣ `[writable]` Program Derived Address which serves as Party data account that stores information about votes etc.
+    ///
+    /// 5️⃣ `[]` The system program
     CreateParty {
         bump_owner: u8,
         bump_state: u8,
         name: String,
     },
-    CreateVoter {
-        bump_owner: u8,
-        bump_state: u8,
-    },
-    Vote {
+    /// Creates Voter in the specified Voting Context, meaning if person wants to vote, he has to call this function first,
+    /// to initialize his voting data account that stores info about how many free votes he had spent, for which parties
+    /// he voted etc.
+    ///
+    ///
+    /// Accounts expected:
+    ///
+    /// 0️⃣ `[signer]` The account that wants to Vote
+    ///
+    /// 1️⃣ `[]` Owner of the specified Voting Context
+    ///
+    /// 2️⃣ `[]` Program Derived Address which serves as Voting Owner and is tied up to Voting State
+    ///
+    /// 3️⃣ `[]` Program Derived Address which serves as Voting State and is tied up to Voting Owner
+    ///
+    /// 4️⃣ `[writable]` Program Derived Address which serves as Voter data account that stores information about free votes etc.
+    ///
+    /// 5️⃣ `[]` The system program
+    CreateVoter { bump_owner: u8, bump_state: u8 },
+    /// Vote Positive for given Party in given Voting Context
+    ///
+    ///
+    /// Accounts expected:
+    ///
+    /// 0️⃣ `[signer]` The account that wants to Vote
+    ///
+    /// 1️⃣ `[]` Owner of the specified Voting Context
+    ///
+    /// 2️⃣ `[]` Program Derived Address which serves as Voting Owner and is tied up to Voting State
+    ///
+    /// 3️⃣ `[]` Program Derived Address which serves as Voting State and is tied up to Voting Owner
+    ///
+    /// 4️⃣ `[writable]` Program Derived Address which serves as Voter data account that stores information about free votes etc.
+    ///
+    /// 5️⃣ `[writable]` Program Derived Address which serves as Party data account that stores information about votes etc.
+    VotePos {
         bump_owner: u8,
         bump_state: u8,
         bump_voter: u8,
         bump_party: u8,
-        vote_context: VoteContext,
+        name: String,
+    },
+    /// Vote Negative for given Party in given Voting Context
+    ///
+    ///
+    /// Accounts expected:
+    ///
+    /// 0️⃣ `[signer]` The account that wants to Vote
+    ///
+    /// 1️⃣ `[]` Owner of the specified Voting Context
+    ///
+    /// 2️⃣ `[]` Program Derived Address which serves as Voting Owner and is tied up to Voting State
+    ///
+    /// 3️⃣ `[]` Program Derived Address which serves as Voting State and is tied up to Voting Owner
+    ///
+    /// 4️⃣ `[writable]` Program Derived Address which serves as Voter data account that stores information about free votes etc.
+    ///
+    /// 5️⃣ `[writable]` Program Derived Address which serves as Party data account that stores information about votes etc.
+    VoteNeg {
+        bump_owner: u8,
+        bump_state: u8,
+        bump_voter: u8,
+        bump_party: u8,
         name: String,
     },
 }
@@ -110,12 +196,34 @@ pub fn create_voter(initializer: Pubkey, voter_author: Pubkey) -> Instruction {
         .unwrap(),
     }
 }
-/// API call that generates instruction for Vote Positive
-pub fn vote_positive(initializer: Pubkey, voter_author: Pubkey, name: String) -> Instruction {
+/// wrapper around vote instruction
+pub fn vote(
+    initializer: Pubkey,
+    voter_author: Pubkey,
+    name: String,
+    preference: VotePreference,
+) -> Instruction {
     let (owner, bump_owner) = get_owner_address(initializer);
     let (state, bump_state) = get_state_address(owner);
     let (voter, bump_voter) = get_voter_address(voter_author, state);
     let (party, bump_party) = get_party_address(&name, state);
+
+    let data = match preference {
+        VotePreference::Negative => JanecekInstruction::VoteNeg {
+            bump_owner,
+            bump_state,
+            bump_voter,
+            bump_party,
+            name,
+        },
+        VotePreference::Positive => JanecekInstruction::VotePos {
+            bump_owner,
+            bump_state,
+            bump_voter,
+            bump_party,
+            name,
+        },
+    };
 
     Instruction {
         program_id: id(),
@@ -127,44 +235,15 @@ pub fn vote_positive(initializer: Pubkey, voter_author: Pubkey, name: String) ->
             AccountMeta::new(voter, false),
             AccountMeta::new(party, false),
         ],
-        data: JanecekInstruction::Vote {
-            bump_owner,
-            bump_state,
-            bump_voter,
-            bump_party,
-            vote_context: VoteContext::Positive,
-            name,
-        }
-        .try_to_vec()
-        .unwrap(),
+        // maybe take preference from instruction data
+        data: data.try_to_vec().unwrap(),
     }
+}
+/// API call that generates instruction for Vote Positive
+pub fn vote_positive(initializer: Pubkey, voter_author: Pubkey, name: String) -> Instruction {
+    vote(initializer, voter_author, name, VotePreference::Positive)
 }
 /// API call that generates instruction for Vote Negative
 pub fn vote_negative(initializer: Pubkey, voter_author: Pubkey, name: String) -> Instruction {
-    let (owner, bump_owner) = get_owner_address(initializer);
-    let (state, bump_state) = get_state_address(owner);
-    let (voter, bump_voter) = get_voter_address(voter_author, state);
-    let (party, bump_party) = get_party_address(&name, state);
-
-    Instruction {
-        program_id: id(),
-        accounts: vec![
-            AccountMeta::new(voter_author, true),
-            AccountMeta::new_readonly(initializer, false),
-            AccountMeta::new_readonly(owner, false),
-            AccountMeta::new_readonly(state, false),
-            AccountMeta::new(voter, false),
-            AccountMeta::new(party, false),
-        ],
-        data: JanecekInstruction::Vote {
-            bump_owner,
-            bump_state,
-            bump_voter,
-            bump_party,
-            vote_context: VoteContext::Negative,
-            name,
-        }
-        .try_to_vec()
-        .unwrap(),
-    }
+    vote(initializer, voter_author, name, VotePreference::Negative)
 }

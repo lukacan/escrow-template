@@ -2,7 +2,7 @@ use crate::entrypoint::id;
 use crate::error::JanecekError;
 use crate::instruction::{
     get_owner_address, get_party_address, get_state_address, get_voter_address, JanecekInstruction,
-    VoteContext,
+    VotePreference,
 };
 use crate::state::JanecekState;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -47,18 +47,30 @@ fn dispatch(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Progr
             bump_owner,
             bump_state,
         } => process_create_voter(program_id, accounts, &[bump_owner, bump_state]),
-        JanecekInstruction::Vote {
+        JanecekInstruction::VoteNeg {
             bump_owner,
             bump_state,
             bump_voter,
             bump_party,
-            vote_context,
             name,
         } => process_vote(
             program_id,
             accounts,
             &[bump_owner, bump_state, bump_voter, bump_party],
-            vote_context,
+            VotePreference::Negative,
+            name,
+        ),
+        JanecekInstruction::VotePos {
+            bump_owner,
+            bump_state,
+            bump_voter,
+            bump_party,
+            name,
+        } => process_vote(
+            program_id,
+            accounts,
+            &[bump_owner, bump_state, bump_voter, bump_party],
+            VotePreference::Positive,
             name,
         ),
     }
@@ -628,9 +640,10 @@ fn process_vote(
     _program_id: &Pubkey,
     accounts: &[AccountInfo],
     bumps: &[u8],
-    vote_context: VoteContext,
+    vote_preference: VotePreference,
     name: String,
 ) -> ProgramResult {
+    try_string_length(&name)?;
     let bump_iter = &mut bumps.iter();
 
     let bump_owner_provided: &u8 = bump_iter.next().unwrap();
@@ -720,11 +733,11 @@ fn process_vote(
             let mut new_pos2 = pos2;
             let mut new_neg1 = neg1;
 
-            match vote_context {
-                VoteContext::Negative => {
+            match vote_preference {
+                VotePreference::Negative => {
                     try_vote_negative(&mut new_votes, &mut new_neg1, pda_party)?;
                 }
-                VoteContext::Positive => {
+                VotePreference::Positive => {
                     try_vote_positive(&mut new_votes, &mut new_pos1, &mut new_pos2, pda_party)?;
                 }
             }
@@ -760,11 +773,11 @@ fn process_vote(
             try_bumps(*bump_party_provided, bump_party_, bump)?;
             let mut new_votes = votes;
 
-            match vote_context {
-                VoteContext::Negative => {
+            match vote_preference {
+                VotePreference::Negative => {
                     try_decrease_votes(&mut new_votes)?;
                 }
-                VoteContext::Positive => {
+                VotePreference::Positive => {
                     try_increase_votes(&mut new_votes)?;
                 }
             }

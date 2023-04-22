@@ -47,8 +47,3 @@ impl From<JanecekError> for ProgramError {
         ProgramError::Custom(e as u32)
     }
 }
-impl From<JanecekError> for u64 {
-    fn from(value: JanecekError) -> Self {
-        value as u64
-    }
-}
