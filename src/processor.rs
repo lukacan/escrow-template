@@ -655,8 +655,10 @@ fn process_vote(
 
     let voter_author = next_account_info(accounts_iter)?;
     try_signer(voter_author)?;
+    try_system_owner(voter_author)?;
 
     let owner = next_account_info(accounts_iter)?;
+    try_system_owner(owner)?;
 
     let pda_owner = next_account_info(accounts_iter)?;
     let (pda_owner_, bump_owner_) = get_owner_address(*owner.key);

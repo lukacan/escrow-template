@@ -50,6 +50,7 @@
 - 🔵✅**Bumps check**
 - 🔵✅**Voting Ended**
 - 🔵✅**Voting Owner/ Voting State/ Initializer Check**
+- 🟤✅**String no longer than 32 bytes check**
 ### 🥝***CreateVoter***
 - 🔴✅**Signer check**
 - 🔴✅**Provided PDA == Derived PDA**
@@ -61,7 +62,6 @@
 - 🔵✅**Bumps check**
 - 🔵✅**Voting Ended**
 - 🔵✅**Voting Owner/ Voting State/ Initializer Check**
-- 🟤✅**String no longer than 32 bytes check**
 ### 🍒***Vote***
 - 🔴✅**Signer check**
 - 🔴✅**Provided PDA == Derived PDA**
