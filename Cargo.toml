@@ -16,7 +16,7 @@ test-bpf = []
 
 
 [dev-dependencies]
-assert_matches = "*"
+assert_matches = "1.5.0"
 solana-logger = "1.13.7"
 solana-program-test = "1.13.7"
 solana-sdk = "1.13.7"

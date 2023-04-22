@@ -16,8 +16,8 @@ use assert_matches::*;
 declare_id!("Fnambs3f1XXoMmAVc94bf8t6JDAxmVkXz85XU4v2edph");
 
 fn init_env() -> TestValidatorGenesis {
-    // solana_logger::setup_with_default("solana_program_runtime=debug");
-    // solana_logger::setup_with_default("solana_runtime::message=debug");
+    solana_logger::setup_with_default("solana_program_runtime=debug");
+    solana_logger::setup_with_default("solana_runtime::message=debug");
     let mut testvalgen = TestValidatorGenesis::default();
     testvalgen.add_program("target/deploy/bpf_program_template", id());
     testvalgen
@@ -155,7 +155,7 @@ fn test_create_party_basic1() {
     let mut testvalgen = init_env();
     let initializer = add_account(&mut testvalgen);
     let alice = add_account(&mut testvalgen);
-    let party_name = "Alice Party";
+    let party_name = "ラウトは難しいです！"; // chars 10 , but bytes 30
 
     let (test_validator, _payer) = testvalgen.start();
     let rpc_client = test_validator.get_rpc_client();
@@ -183,6 +183,44 @@ fn test_create_party_basic2() {
         Ok(_)
     );
 
+    assert_matches!(
+        create_party_transaction(&rpc_client, &initializer, &alice, party_name,),
+        Err(_)
+    );
+}
+
+#[test]
+fn test_create_party_basic3() {
+    let mut testvalgen = init_env();
+    let initializer = add_account(&mut testvalgen);
+    let alice = add_account(&mut testvalgen);
+
+    // Max seed length in bytes is 32
+    let party_name = "ラウトは難しいです!!!!";
+
+    let (test_validator, _payer) = testvalgen.start();
+    let rpc_client = test_validator.get_rpc_client();
+
+    assert_matches!(initialize_transaction(&rpc_client, &initializer), Ok(_));
+    assert_matches!(
+        create_party_transaction(&rpc_client, &initializer, &alice, party_name,),
+        Ok(_)
+    );
+}
+
+#[test]
+#[should_panic]
+fn test_create_party_basic4() {
+    let mut testvalgen = init_env();
+    let initializer = add_account(&mut testvalgen);
+    let alice = add_account(&mut testvalgen);
+
+    let party_name = "ラウトは難しいです!!!!!!";
+
+    let (test_validator, _payer) = testvalgen.start();
+    let rpc_client = test_validator.get_rpc_client();
+
+    assert_matches!(initialize_transaction(&rpc_client, &initializer), Ok(_));
     assert_matches!(
         create_party_transaction(&rpc_client, &initializer, &alice, party_name,),
         Err(_)
@@ -262,6 +300,32 @@ fn test_try_pos_vote_basic2() {
     );
     assert_matches!(
         create_vote_pos_transaction(&rpc_client, &initializer, &bob, party_ben),
+        Ok(_)
+    );
+}
+
+#[test]
+fn test_try_pos_vote_basic3() {
+    let mut testvalgen = init_env();
+    let initializer = add_account(&mut testvalgen);
+    let bob = add_account(&mut testvalgen);
+    let alice = add_account(&mut testvalgen);
+    let party_name = "ラウトは難しいです！";
+
+    let (test_validator, _payer) = testvalgen.start();
+    let rpc_client = test_validator.get_rpc_client();
+
+    assert_matches!(initialize_transaction(&rpc_client, &initializer), Ok(_));
+    assert_matches!(
+        create_voter_transaction(&rpc_client, &initializer, &bob),
+        Ok(_)
+    );
+    assert_matches!(
+        create_party_transaction(&rpc_client, &initializer, &alice, party_name),
+        Ok(_)
+    );
+    assert_matches!(
+        create_vote_pos_transaction(&rpc_client, &initializer, &bob, party_name),
         Ok(_)
     );
 }

@@ -18,7 +18,7 @@ pub enum JanecekState {
         author: Pubkey,
         voting_state: Pubkey,
         created: i64,
-        name: String,
+        name: [u8; JanecekState::NAME_LENGTH],
         votes: i64,
         bump: u8,
     },
@@ -47,6 +47,7 @@ pub enum JanecekState {
     },
 }
 #[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize)]
+#[repr(u8)]
 pub enum VotesStates {
     NoMoreVotes,
     NoMorePositiveVotes,
@@ -60,8 +61,7 @@ impl JanecekState {
         + size_of::<Pubkey>()
         + size_of::<Pubkey>()
         + size_of::<i64>()
-        + size_of::<u32>()
-        + JanecekState::NAME_LENGTH * 4
+        + JanecekState::NAME_LENGTH
         + size_of::<i64>()
         + size_of::<u8>();
     pub const LEN_VOTER: usize = size_of::<u8>()

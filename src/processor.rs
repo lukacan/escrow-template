@@ -6,7 +6,6 @@ use crate::instruction::{
 };
 use crate::state::JanecekState;
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::msg;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     clock::Clock,
@@ -43,11 +42,11 @@ fn dispatch(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Progr
             bump_owner,
             bump_state,
             name,
-        } => process_create_party(program_id, accounts, bump_owner, bump_state, name),
+        } => process_create_party(program_id, accounts, &[bump_owner, bump_state], name),
         JanecekInstruction::CreateVoter {
             bump_owner,
             bump_state,
-        } => process_create_voter(program_id, accounts, bump_owner, bump_state),
+        } => process_create_voter(program_id, accounts, &[bump_owner, bump_state]),
         JanecekInstruction::Vote {
             bump_owner,
             bump_state,
@@ -58,10 +57,7 @@ fn dispatch(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Progr
         } => process_vote(
             program_id,
             accounts,
-            bump_owner,
-            bump_state,
-            bump_voter,
-            bump_party,
+            &[bump_owner, bump_state, bump_voter, bump_party],
             vote_context,
             name,
         ),
@@ -125,6 +121,14 @@ fn try_seeds(provided: &Pubkey, derived: &Pubkey) -> ProgramResult {
 fn try_bumps(provided: u8, derived: u8, saved: u8) -> ProgramResult {
     if provided != derived || saved != derived {
         Err(ProgramError::InvalidSeeds)
+    } else {
+        Ok(())
+    }
+}
+
+fn try_string_length(string: &String) -> ProgramResult {
+    if string.len() > 32 {
+        Err(ProgramError::InvalidInstructionData)
     } else {
         Ok(())
     }
@@ -400,13 +404,15 @@ fn process_initialize(_program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
 fn process_create_party(
     _program_id: &Pubkey,
     accounts: &[AccountInfo],
-    bump_owner_provided: u8,
-    bump_state_provided: u8,
+    bumps: &[u8],
     name: String,
 ) -> ProgramResult {
-    if name.chars().count() > 32 {
-        return Err(ProgramError::InvalidInstructionData);
-    }
+    try_string_length(&name)?;
+
+    let bump_iter = &mut bumps.iter();
+
+    let bump_owner_provided: &u8 = bump_iter.next().unwrap();
+    let bump_state_provided: &u8 = bump_iter.next().unwrap();
 
     let accounts_iter = &mut accounts.iter();
 
@@ -460,7 +466,7 @@ fn process_create_party(
             try_uninitialized(is_initialized)?;
             try_author(owner, &author)?;
             try_voting_state(pda_state, &voting_state)?;
-            try_bumps(bump_owner_provided, bump_owner, bump)?;
+            try_bumps(*bump_owner_provided, bump_owner, bump)?;
         }
         _ => return Err(ProgramError::InvalidAccountData),
     };
@@ -474,7 +480,7 @@ fn process_create_party(
         } => {
             try_uninitialized(is_initialized)?;
             try_voting_owner(pda_owner, &voting_owner)?;
-            try_bumps(bump_state_provided, bump_state, bump)?;
+            try_bumps(*bump_state_provided, bump_state, bump)?;
             let clock: Clock = Clock::get()?;
             let now = clock.unix_timestamp;
             try_voting_ended(voting_ends, now)?;
@@ -490,12 +496,17 @@ fn process_create_party(
         }
         _ => return Err(ProgramError::InvalidAccountData),
     };
+
+    let mut name_bytearray: [u8; JanecekState::NAME_LENGTH] = [0u8; JanecekState::NAME_LENGTH];
+
+    name_bytearray[..name.len()].copy_from_slice(name.into_bytes().as_slice());
+
     let party = JanecekState::Party {
         is_initialized: true,
         author: *author.key,
         voting_state: *pda_state.key,
         created: now,
-        name,
+        name: name_bytearray,
         votes: 0,
         bump: bump_party,
     };
@@ -509,9 +520,12 @@ fn process_create_party(
 fn process_create_voter(
     _program_id: &Pubkey,
     accounts: &[AccountInfo],
-    bump_owner_provided: u8,
-    bump_state_provided: u8,
+    bumps: &[u8],
 ) -> ProgramResult {
+    let bump_iter = &mut bumps.iter();
+    let bump_owner_provided: &u8 = bump_iter.next().unwrap();
+    let bump_state_provided: &u8 = bump_iter.next().unwrap();
+
     let accounts_iter = &mut accounts.iter();
 
     let author = next_account_info(accounts_iter)?;
@@ -566,7 +580,7 @@ fn process_create_voter(
             try_uninitialized(is_initialized)?;
             try_author(owner, &author)?;
             try_voting_state(pda_state, &voting_state)?;
-            try_bumps(bump_owner_provided, bump_owner_, bump)?;
+            try_bumps(*bump_owner_provided, bump_owner_, bump)?;
         }
         _ => return Err(ProgramError::InvalidAccountData),
     };
@@ -580,7 +594,7 @@ fn process_create_voter(
         } => {
             try_uninitialized(is_initialized)?;
             try_voting_owner(pda_owner, &voting_owner)?;
-            try_bumps(bump_state_provided, bump_state_, bump)?;
+            try_bumps(*bump_state_provided, bump_state_, bump)?;
             let clock: Clock = Clock::get()?;
             let now = clock.unix_timestamp;
             try_voting_ended(voting_ends, now)?;
@@ -613,13 +627,17 @@ fn process_create_voter(
 fn process_vote(
     _program_id: &Pubkey,
     accounts: &[AccountInfo],
-    bump_owner_provided: u8,
-    bump_state_provided: u8,
-    bump_voter_provided: u8,
-    bump_party_provided: u8,
+    bumps: &[u8],
     vote_context: VoteContext,
     name: String,
 ) -> ProgramResult {
+    let bump_iter = &mut bumps.iter();
+
+    let bump_owner_provided: &u8 = bump_iter.next().unwrap();
+    let bump_state_provided: &u8 = bump_iter.next().unwrap();
+    let bump_voter_provided: &u8 = bump_iter.next().unwrap();
+    let bump_party_provided: &u8 = bump_iter.next().unwrap();
+
     let accounts_iter = &mut accounts.iter();
 
     let voter_author = next_account_info(accounts_iter)?;
@@ -651,11 +669,6 @@ fn process_vote(
     try_seeds(&pda_party_, pda_party.key)?;
     try_rent_exempt(pda_party)?;
 
-    // ????
-    // try_writable(voter_author)?;
-    // try_writable(pda_voter)?;
-    // try_writable(pda_party)?;
-
     match JanecekState::deserialize(&mut &(*pda_owner.data).borrow_mut()[..])? {
         JanecekState::VotingOwner {
             is_initialized,
@@ -666,7 +679,7 @@ fn process_vote(
             try_uninitialized(is_initialized)?;
             try_author(owner, &author)?;
             try_voting_state(pda_state, &voting_state)?;
-            try_bumps(bump_owner_provided, bump_owner_, bump)?;
+            try_bumps(*bump_owner_provided, bump_owner_, bump)?;
         }
         _ => return Err(ProgramError::InvalidAccountData),
     };
@@ -680,7 +693,7 @@ fn process_vote(
         } => {
             try_uninitialized(is_initialized)?;
             try_voting_owner(pda_owner, &voting_owner)?;
-            try_bumps(bump_state_provided, bump_state_, bump)?;
+            try_bumps(*bump_state_provided, bump_state_, bump)?;
             let clock: Clock = Clock::get()?;
             let now = clock.unix_timestamp;
             try_voting_ended(voting_ends, now)?;
@@ -701,7 +714,7 @@ fn process_vote(
             try_uninitialized(is_initialized)?;
             try_author(voter_author, &author)?;
             try_voting_state(pda_state, &voting_state)?;
-            try_bumps(bump_voter_provided, bump_voter_, bump)?;
+            try_bumps(*bump_voter_provided, bump_voter_, bump)?;
             let mut new_votes = num_votes;
             let mut new_pos1 = pos1;
             let mut new_pos2 = pos2;
@@ -744,7 +757,7 @@ fn process_vote(
         } => {
             try_uninitialized(is_initialized)?;
             try_voting_state(pda_state, &voting_state)?;
-            try_bumps(bump_party_provided, bump_party_, bump)?;
+            try_bumps(*bump_party_provided, bump_party_, bump)?;
             let mut new_votes = votes;
 
             match vote_context {
