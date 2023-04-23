@@ -36,6 +36,7 @@
 - ❓ **deserialization on enum - what if i send instraction data too long, have test case for this**
 - ❓ **readability checks**
 - ❓ **system program owner check during initi/c_party/c_voter**
+- ❓ **error order, if voting state is not initalized and user wants to create party, owner check triggers first (account does not exists, so owner is system program), after that account initialized check is performed, but this behaviour can confuse users**
 
 ### 🍎***Initialize***
 - 🔴✅**Signer check**

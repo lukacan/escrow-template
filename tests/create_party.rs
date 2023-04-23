@@ -1,3 +1,6 @@
+use core::time;
+use std::thread;
+
 use bpf_program_template::{
     instruction::{get_owner_address, get_party_address, get_state_address},
     state::JanecekState,
@@ -273,5 +276,32 @@ fn test_create_party_basic8() {
     assert_matches!(
         common::create_party_transaction(&rpc_client, &initializer, &alice, party_name),
         Ok(_)
+    );
+}
+
+/// check if party can be created after voting ended
+#[test]
+#[ignore = "voting ended test, to test this voting time has to be decreased to 5s"]
+fn test_create_party_basic9() {
+    let mut testvalgen = common::init_env();
+    let initializer = common::add_account(&mut testvalgen);
+    let alice = common::add_account(&mut testvalgen);
+    let party_name = "ラウトは難しいです！"; // chars 10 , but bytes 30
+
+    let (test_validator, _payer) = testvalgen.start();
+    let rpc_client = test_validator.get_rpc_client();
+
+    assert_matches!(
+        common::initialize_transaction(&rpc_client, &initializer),
+        Ok(_)
+    );
+
+    // sleep 10 seconds
+    let ten_millis = time::Duration::from_millis(10000);
+    thread::sleep(ten_millis);
+
+    assert_matches!(
+        common::create_party_transaction(&rpc_client, &initializer, &alice, party_name,),
+        Err(_)
     );
 }

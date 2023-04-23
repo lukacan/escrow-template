@@ -15,7 +15,7 @@ use solana_program::{
     sysvar::Sysvar,
 };
 
-use crate::try_functions::{self, try_ixdata_len};
+use crate::try_functions;
 
 use crate::state::VotesStates;
 
@@ -38,12 +38,12 @@ fn dispatch(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Progr
     // I want to ensure that only data with valid length can be put into instruction buffer
     // in that case we check data length in corresponding instruction context,
     // we have to use data reference instead of ix_data, because deserializer adjust the position
-    // of the reference so that means, two check can be performed
+    // of the reference so that means, two checks can be performed
     // 1. any data left in the buffer ? (ix_data.len() == 0 ?)
     // 2. does instruction data buffer have appropriate length ?? (data.len() == INS_CONTEXT)
     match JanecekInstruction::deserialize(&mut ix_data)? {
         JanecekInstruction::Initialize => {
-            try_ixdata_len(data, JanecekInstruction::INIT_LEN)?;
+            try_functions::try_ixdata_len(data, JanecekInstruction::INIT_LEN)?;
             process_initialize(program_id, accounts)
         }
         JanecekInstruction::CreateParty {
@@ -51,7 +51,7 @@ fn dispatch(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Progr
             bump_state,
             name_bytearray,
         } => {
-            try_ixdata_len(data, JanecekInstruction::C_PARTY_LEN)?;
+            try_functions::try_ixdata_len(data, JanecekInstruction::C_PARTY_LEN)?;
             process_create_party(
                 program_id,
                 accounts,
@@ -63,7 +63,7 @@ fn dispatch(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Progr
             bump_owner,
             bump_state,
         } => {
-            try_ixdata_len(data, JanecekInstruction::C_VOTER_LEN)?;
+            try_functions::try_ixdata_len(data, JanecekInstruction::C_VOTER_LEN)?;
             process_create_voter(program_id, accounts, &[bump_owner, bump_state])
         }
         JanecekInstruction::VoteNeg {
@@ -73,7 +73,7 @@ fn dispatch(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Progr
             bump_party,
             name_bytearray,
         } => {
-            try_ixdata_len(data, JanecekInstruction::VOTE_N_LEN)?;
+            try_functions::try_ixdata_len(data, JanecekInstruction::VOTE_N_LEN)?;
             process_vote(
                 program_id,
                 accounts,
@@ -89,7 +89,7 @@ fn dispatch(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Progr
             bump_party,
             name_bytearray,
         } => {
-            try_ixdata_len(data, JanecekInstruction::VOTE_P_LEN)?;
+            try_functions::try_ixdata_len(data, JanecekInstruction::VOTE_P_LEN)?;
             process_vote(
                 program_id,
                 accounts,
@@ -106,7 +106,6 @@ fn process_initialize(_program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
 
     let author = next_account_info(accounts_iter)?;
     try_functions::try_signer(author)?;
-    //try_functions::try_system_owner(author)?;
 
     let pda_owner = next_account_info(accounts_iter)?;
     let (pda_owner_, bump_owner) = get_owner_address(*author.key);
@@ -116,7 +115,6 @@ fn process_initialize(_program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
     let pda_state = next_account_info(accounts_iter)?;
     let (pda_state_, bump_state) = get_state_address(pda_owner_);
     try_functions::try_seeds(&pda_state_, pda_state.key)?;
-    //try_functions::try_system_owner(pda_state)?;
 
     let system_program = next_account_info(accounts_iter)?;
     try_functions::try_system_program(system_program)?;
@@ -175,7 +173,7 @@ fn process_initialize(_program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
     let start = clock.unix_timestamp;
 
     // add 7 days to the current time, as voting lasts for 7 days
-    let end = match start.checked_add(7 * 24 * 60 * 60) {
+    let end = match start.checked_add(JanecekState::VOTING_LENGTH) {
         Some(sucess) => sucess,
         None => return Err(JanecekError::AdditionOverflow.into()),
     };

@@ -84,4 +84,5 @@ impl JanecekState {
         + size_of::<Pubkey>() // author
         + size_of::<Pubkey>() // voting state
         + size_of::<u8>(); // bump
+    pub const VOTING_LENGTH: i64 = 7 * 24 * 60 * 60;
 }
