@@ -5,7 +5,7 @@ use solana_program::{
     system_program,
 };
 
-use crate::entrypoint::id;
+use crate::{entrypoint::id, state::JanecekState};
 #[derive(Debug, BorshDeserialize, BorshSerialize)]
 pub enum VotePreference {
     Positive,
@@ -50,7 +50,7 @@ pub enum JanecekInstruction {
     CreateParty {
         bump_owner: u8,
         bump_state: u8,
-        name: String,
+        name_bytearray: [u8; JanecekState::NAME_LENGTH],
     },
     /// Creates Voter in the specified Voting Context, meaning if person wants to vote, he has to call this function first,
     /// to initialize his voting data account that stores info about how many free votes he had spent, for which parties
@@ -92,7 +92,7 @@ pub enum JanecekInstruction {
         bump_state: u8,
         bump_voter: u8,
         bump_party: u8,
-        name: String,
+        name_bytearray: [u8; JanecekState::NAME_LENGTH],
     },
     /// Vote Negative for given Party in given Voting Context
     ///
@@ -115,15 +115,18 @@ pub enum JanecekInstruction {
         bump_state: u8,
         bump_voter: u8,
         bump_party: u8,
-        name: String,
+        name_bytearray: [u8; JanecekState::NAME_LENGTH],
     },
 }
 
 pub fn get_owner_address(account: Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[b"voting_owner", account.as_ref()], &id())
 }
-pub fn get_party_address(name: &String, account: Pubkey) -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[name.as_bytes(), account.as_ref()], &id())
+pub fn get_party_address(
+    name_bytearray: &[u8; JanecekState::NAME_LENGTH],
+    account: Pubkey,
+) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[name_bytearray, account.as_ref()], &id())
 }
 pub fn get_voter_address(author: Pubkey, account: Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[b"new_voter", author.as_ref(), account.as_ref()], &id())
@@ -149,9 +152,12 @@ pub fn initialize(initializer: Pubkey) -> Instruction {
 }
 /// API call that generates instruction for Create Party
 pub fn create_party(initializer: Pubkey, party_author: Pubkey, name: String) -> Instruction {
+    let mut name_bytearray: [u8; JanecekState::NAME_LENGTH] = [0u8; JanecekState::NAME_LENGTH];
+    name_bytearray[..name.len()].copy_from_slice(name.into_bytes().as_slice());
+
     let (owner, bump_owner) = get_owner_address(initializer);
     let (state, bump_state) = get_state_address(owner);
-    let (party, _bump_party) = get_party_address(&name, state);
+    let (party, _bump_party) = get_party_address(&name_bytearray, state);
 
     Instruction {
         program_id: id(),
@@ -166,7 +172,7 @@ pub fn create_party(initializer: Pubkey, party_author: Pubkey, name: String) -> 
         data: JanecekInstruction::CreateParty {
             bump_owner,
             bump_state,
-            name,
+            name_bytearray,
         }
         .try_to_vec()
         .unwrap(),
@@ -203,10 +209,12 @@ pub fn vote(
     name: String,
     preference: VotePreference,
 ) -> Instruction {
+    let mut name_bytearray: [u8; JanecekState::NAME_LENGTH] = [0u8; JanecekState::NAME_LENGTH];
+    name_bytearray[..name.len()].copy_from_slice(name.into_bytes().as_slice());
     let (owner, bump_owner) = get_owner_address(initializer);
     let (state, bump_state) = get_state_address(owner);
     let (voter, bump_voter) = get_voter_address(voter_author, state);
-    let (party, bump_party) = get_party_address(&name, state);
+    let (party, bump_party) = get_party_address(&name_bytearray, state);
 
     let data = match preference {
         VotePreference::Negative => JanecekInstruction::VoteNeg {
@@ -214,14 +222,14 @@ pub fn vote(
             bump_state,
             bump_voter,
             bump_party,
-            name,
+            name_bytearray,
         },
         VotePreference::Positive => JanecekInstruction::VotePos {
             bump_owner,
             bump_state,
             bump_voter,
             bump_party,
-            name,
+            name_bytearray,
         },
     };
 

@@ -22,6 +22,6 @@ solana-program-test = "1.13.7"
 solana-sdk = "1.13.7"
 solana-validator = "1.13.7"
 solana-client="1.13.7"
-
+base64="0.21.0"
 [lib]
 crate-type = ["cdylib", "lib"]

@@ -1,31 +1,21 @@
-// inside error.rs
 use solana_program::program_error::ProgramError;
 use thiserror::Error;
 
 #[derive(Error, Debug, Copy, Clone, PartialEq)]
 pub enum JanecekError {
-    // trying to use as many errors as possible from ProgramError
     // pubkeys mismatch
     #[error("Voting owner ID mismatch")]
     VotingOwnerMismatch,
     #[error("Voting state ID mismatch")]
     VotingStateMismatch,
-    #[error("Voter Mismatch")]
-    VoterMismatch,
+    #[error("Author Mismatch")]
+    AuthorMismatch,
 
     // misc
     #[error("Addition overflow")]
     AdditionOverflow,
     #[error("Subtraction overflow")]
     SubtractionOverflow,
-    #[error("Incorrect account type")]
-    DiscriminantMismatch,
-
-    // context accounts
-    #[error("Account is not mutable")]
-    AccountNotmutable,
-    #[error("Read-only account required")]
-    AccountMutable,
 
     // votes
     #[error("Can`t vote 2 times for same Party")]
