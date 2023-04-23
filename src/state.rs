@@ -56,32 +56,32 @@ pub enum VotesStates {
 }
 impl JanecekState {
     pub const NAME_LENGTH: usize = 32; // in bytes
-    pub const LEN_PARTY: usize = size_of::<u8>()
-        + size_of::<bool>()
-        + size_of::<Pubkey>()
-        + size_of::<Pubkey>()
-        + size_of::<i64>()
-        + JanecekState::NAME_LENGTH
-        + size_of::<i64>()
-        + size_of::<u8>();
-    pub const LEN_VOTER: usize = size_of::<u8>()
-        + size_of::<bool>()
-        + size_of::<Pubkey>()
-        + size_of::<Pubkey>()
-        + 1
-        + size_of::<Pubkey>()
-        + size_of::<Pubkey>()
-        + size_of::<Pubkey>()
-        + size_of::<u8>();
-    pub const LEN_VOTINGSTATE: usize = size_of::<u8>()
-        + size_of::<bool>()
-        + size_of::<Pubkey>()
-        + size_of::<i64>()
-        + size_of::<i64>()
-        + size_of::<u8>();
-    pub const LEN_VOTINGOWNER: usize = size_of::<u8>()
-        + size_of::<bool>()
-        + size_of::<Pubkey>()
-        + size_of::<Pubkey>()
-        + size_of::<u8>();
+    pub const LEN_PARTY: usize = size_of::<u8>() // enum
+        + size_of::<bool>() // initialized
+        + size_of::<Pubkey>() // author
+        + size_of::<Pubkey>() // voting state
+        + size_of::<i64>() // created
+        + JanecekState::NAME_LENGTH // name buffer
+        + size_of::<i64>() // votes
+        + size_of::<u8>(); // bump
+    pub const LEN_VOTER: usize = size_of::<u8>() // enum
+        + size_of::<bool>() // initialized
+        + size_of::<Pubkey>() // author
+        + size_of::<Pubkey>() // voting state
+        + 1  // votes state
+        + size_of::<Pubkey>() // pos1
+        + size_of::<Pubkey>() // pos2
+        + size_of::<Pubkey>() // neg1
+        + size_of::<u8>(); // bump
+    pub const LEN_VOTINGSTATE: usize = size_of::<u8>() // enum
+        + size_of::<bool>() // initialized
+        + size_of::<Pubkey>() // voting owner
+        + size_of::<i64>() // started
+        + size_of::<i64>() // ends
+        + size_of::<u8>(); // bump
+    pub const LEN_VOTINGOWNER: usize = size_of::<u8>() // enum
+        + size_of::<bool>() // initialized
+        + size_of::<Pubkey>() // author
+        + size_of::<Pubkey>() // voting state
+        + size_of::<u8>(); // bump
 }

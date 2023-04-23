@@ -15,7 +15,7 @@ use solana_program::{
     sysvar::Sysvar,
 };
 
-use crate::try_functions;
+use crate::try_functions::{self, try_ixdata_len};
 
 use crate::state::VotesStates;
 
@@ -35,48 +35,69 @@ pub fn entry(
 fn dispatch(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     let mut ix_data: &[u8] = data;
 
+    // I want to ensure that only data with valid length can be put into instruction buffer
+    // in that case we check data length in corresponding instruction context,
+    // we have to use data reference instead of ix_data, because deserializer adjust the position
+    // of the reference so that means, two check can be performed
+    // 1. any data left in the buffer ? (ix_data.len() == 0 ?)
+    // 2. does instruction data buffer have appropriate length ?? (data.len() == INS_CONTEXT)
     match JanecekInstruction::deserialize(&mut ix_data)? {
-        JanecekInstruction::Initialize => process_initialize(program_id, accounts),
+        JanecekInstruction::Initialize => {
+            try_ixdata_len(data, JanecekInstruction::INIT_LEN)?;
+            process_initialize(program_id, accounts)
+        }
         JanecekInstruction::CreateParty {
             bump_owner,
             bump_state,
             name_bytearray,
-        } => process_create_party(
-            program_id,
-            accounts,
-            &[bump_owner, bump_state],
-            &name_bytearray,
-        ),
+        } => {
+            try_ixdata_len(data, JanecekInstruction::C_PARTY_LEN)?;
+            process_create_party(
+                program_id,
+                accounts,
+                &[bump_owner, bump_state],
+                &name_bytearray,
+            )
+        }
         JanecekInstruction::CreateVoter {
             bump_owner,
             bump_state,
-        } => process_create_voter(program_id, accounts, &[bump_owner, bump_state]),
+        } => {
+            try_ixdata_len(data, JanecekInstruction::C_VOTER_LEN)?;
+            process_create_voter(program_id, accounts, &[bump_owner, bump_state])
+        }
         JanecekInstruction::VoteNeg {
             bump_owner,
             bump_state,
             bump_voter,
             bump_party,
             name_bytearray,
-        } => process_vote(
-            program_id,
-            accounts,
-            &[bump_owner, bump_state, bump_voter, bump_party],
-            VotePreference::Negative,
-            &name_bytearray,
-        ),
+        } => {
+            try_ixdata_len(data, JanecekInstruction::VOTE_N_LEN)?;
+            process_vote(
+                program_id,
+                accounts,
+                &[bump_owner, bump_state, bump_voter, bump_party],
+                VotePreference::Negative,
+                &name_bytearray,
+            )
+        }
         JanecekInstruction::VotePos {
             bump_owner,
             bump_state,
             bump_voter,
             bump_party,
             name_bytearray,
-        } => process_vote(
-            program_id,
-            accounts,
-            &[bump_owner, bump_state, bump_voter, bump_party],
-            VotePreference::Positive,
-            &name_bytearray,
-        ),
+        } => {
+            try_ixdata_len(data, JanecekInstruction::VOTE_P_LEN)?;
+            process_vote(
+                program_id,
+                accounts,
+                &[bump_owner, bump_state, bump_voter, bump_party],
+                VotePreference::Positive,
+                &name_bytearray,
+            )
+        }
     }
 }
 

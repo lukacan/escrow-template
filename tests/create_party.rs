@@ -219,7 +219,7 @@ fn test_create_party_basic7() {
         Ok(_)
     );
 
-    // bud send wrong long name as instruction data
+    // but send wrong long name as instruction data
     let long_party_name = String::from(
         "Alice Party Very long long long long long long long long long long long name for alice party",
     );
@@ -251,5 +251,27 @@ fn test_create_party_basic7() {
     assert_matches!(
         rpc_client.send_and_confirm_transaction(&transaction),
         Err(_)
+    );
+}
+
+#[test]
+#[should_panic]
+fn test_create_party_basic8() {
+    let mut testvalgen = common::init_env();
+    let initializer = common::add_account(&mut testvalgen);
+    let alice = common::add_account(&mut testvalgen);
+
+    let party_name =
+        "Very long long long long long long long long long long long name for alice party";
+    let (test_validator, _payer) = testvalgen.start();
+    let rpc_client = test_validator.get_rpc_client();
+
+    assert_matches!(
+        common::initialize_transaction(&rpc_client, &initializer),
+        Ok(_)
+    );
+    assert_matches!(
+        common::create_party_transaction(&rpc_client, &initializer, &alice, party_name),
+        Ok(_)
     );
 }

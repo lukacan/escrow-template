@@ -11,6 +11,7 @@ use solana_validator::test_validator::*;
 
 declare_id!("Fnambs3f1XXoMmAVc94bf8t6JDAxmVkXz85XU4v2edph");
 
+#[allow(dead_code)]
 pub fn init_env() -> TestValidatorGenesis {
     // solana_logger::setup_with_default("solana_program_runtime=debug");
     // solana_logger::setup_with_default("solana_runtime::message=debug");
@@ -18,7 +19,7 @@ pub fn init_env() -> TestValidatorGenesis {
     testvalgen.add_program("target/deploy/bpf_program_template", id());
     testvalgen
 }
-
+#[allow(dead_code)]
 pub fn initialize_transaction(
     rpc_client: &RpcClient,
     initializer: &Keypair,
@@ -33,7 +34,7 @@ pub fn initialize_transaction(
     transaction.sign(&[initializer], blockhash);
     rpc_client.send_and_confirm_transaction(&transaction)
 }
-
+#[allow(dead_code)]
 pub fn create_party_transaction(
     rpc_client: &RpcClient,
     initializer: &Keypair,
@@ -54,7 +55,7 @@ pub fn create_party_transaction(
     transaction.sign(&[author, initializer], blockhash);
     rpc_client.send_and_confirm_transaction(&transaction)
 }
-
+#[allow(dead_code)]
 pub fn create_voter_transaction(
     rpc_client: &RpcClient,
     initializer: &Keypair,
@@ -70,7 +71,7 @@ pub fn create_voter_transaction(
     transaction.sign(&[author], blockhash);
     rpc_client.send_and_confirm_transaction(&transaction)
 }
-
+#[allow(dead_code)]
 pub fn create_vote_pos_transaction(
     rpc_client: &RpcClient,
     initializer: &Keypair,
@@ -91,7 +92,7 @@ pub fn create_vote_pos_transaction(
     transaction.sign(&[author], blockhash);
     rpc_client.send_and_confirm_transaction(&transaction)
 }
-
+#[allow(dead_code)]
 pub fn create_vote_neg_transaction(
     rpc_client: &RpcClient,
     initializer: &Keypair,
@@ -112,7 +113,7 @@ pub fn create_vote_neg_transaction(
     transaction.sign(&[author], blockhash);
     rpc_client.send_and_confirm_transaction(&transaction)
 }
-
+#[allow(dead_code)]
 pub fn add_account(testvalgen: &mut TestValidatorGenesis) -> Keypair {
     let alice = Keypair::new();
     let account = AccountSharedData::new(

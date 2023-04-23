@@ -31,6 +31,11 @@
 - **Author and Owner, who corresponds to this voting state, have to sign transaction - meaning owner has to approve inserting new party into context.**
 - Party in specified context can`t be created after voting in the context ended.
 
+### ***Questions***
+- ❓ **not using string in instruction data, but bytearray good/bad**
+- ❓ **deserialization on enum - what if i send instraction data too long, have test case for this**
+- ❓ **readability checks**
+- ❓ **system program owner check during initi/c_party/c_voter**
 
 ### 🍎***Initialize***
 - 🔴✅**Signer check**
@@ -107,4 +112,12 @@
 ```
 $ cargo build-sbf
 $ cargo test-sbf
+```
+## 🥓***Test specific instruction (create_party)***
+```
+$ cargo test-sbf --test create_party
+```
+## 🍗***Test specific test in specific instruction***
+```
+$ cargo test-sbf --test create_party basic1
 ```

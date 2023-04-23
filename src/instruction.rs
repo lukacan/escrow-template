@@ -7,11 +7,13 @@ use solana_program::{
 
 use crate::{entrypoint::id, state::JanecekState};
 #[derive(Debug, BorshDeserialize, BorshSerialize)]
+#[repr(u8)]
 pub enum VotePreference {
     Positive,
     Negative,
 }
 #[derive(Debug, BorshDeserialize, BorshSerialize)]
+#[repr(u8)]
 pub enum JanecekInstruction {
     /// Starts voting by initializing Voting State that is tied to Voting Owner, Voting State is automatically initialized
     /// with 7 days deadline, that means, during this period of time, new Parties, new Voters can be added to this Voting
@@ -117,6 +119,14 @@ pub enum JanecekInstruction {
         bump_party: u8,
         name_bytearray: [u8; JanecekState::NAME_LENGTH],
     },
+}
+
+impl JanecekInstruction {
+    pub const INIT_LEN: usize = 1;
+    pub const C_PARTY_LEN: usize = 1 + 1 + 1 + 32;
+    pub const C_VOTER_LEN: usize = 1 + 1 + 1;
+    pub const VOTE_P_LEN: usize = 1 + 1 + 1 + 1 + 1 + 32;
+    pub const VOTE_N_LEN: usize = 1 + 1 + 1 + 1 + 1 + 32;
 }
 
 pub fn get_owner_address(account: Pubkey) -> (Pubkey, u8) {

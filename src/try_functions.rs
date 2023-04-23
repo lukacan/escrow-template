@@ -95,6 +95,14 @@ pub fn try_uninitialized(is_initialized: bool) -> ProgramResult {
         Ok(())
     }
 }
+/// check if instruction data length is correct
+pub fn try_ixdata_len(ix_data: &[u8], instr_len: usize) -> ProgramResult {
+    if ix_data.len() != instr_len {
+        Err(ProgramError::InvalidInstructionData)
+    } else {
+        Ok(())
+    }
+}
 /// check if voting ended for given timestamp
 pub fn try_voting_ended(deadline: i64, timestamp: i64) -> ProgramResult {
     if timestamp > deadline {
