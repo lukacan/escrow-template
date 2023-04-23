@@ -4,6 +4,7 @@ use solana_program::{
     pubkey::Pubkey,
     system_program,
 };
+use std::mem::size_of;
 
 use crate::{entrypoint::id, state::JanecekState};
 #[derive(Debug, BorshDeserialize, BorshSerialize)]
@@ -123,10 +124,21 @@ pub enum JanecekInstruction {
 
 impl JanecekInstruction {
     pub const INIT_LEN: usize = 1;
-    pub const C_PARTY_LEN: usize = 1 + 1 + 1 + 32;
-    pub const C_VOTER_LEN: usize = 1 + 1 + 1;
-    pub const VOTE_P_LEN: usize = 1 + 1 + 1 + 1 + 1 + 32;
-    pub const VOTE_N_LEN: usize = 1 + 1 + 1 + 1 + 1 + 32;
+    pub const C_PARTY_LEN: usize =
+        size_of::<u8>() + size_of::<u8>() + size_of::<u8>() + size_of::<Pubkey>();
+    pub const C_VOTER_LEN: usize = size_of::<u8>() + size_of::<u8>() + size_of::<u8>();
+    pub const VOTE_P_LEN: usize = size_of::<u8>()
+        + size_of::<u8>()
+        + size_of::<u8>()
+        + size_of::<u8>()
+        + size_of::<u8>()
+        + size_of::<Pubkey>();
+    pub const VOTE_N_LEN: usize = size_of::<u8>()
+        + size_of::<u8>()
+        + size_of::<u8>()
+        + size_of::<u8>()
+        + size_of::<u8>()
+        + size_of::<Pubkey>();
 }
 
 pub fn get_owner_address(account: Pubkey) -> (Pubkey, u8) {
