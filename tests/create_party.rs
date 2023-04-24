@@ -63,6 +63,7 @@ fn test_create_party_basic2() {
         common::create_party_transaction(&rpc_client, &initializer, &alice, party_name,),
         Err(_)
     );
+    common::compare_party_data(&rpc_client, &initializer, &alice, party_name, 0);
 }
 
 /// test that creates party with special name
