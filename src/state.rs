@@ -56,7 +56,7 @@ pub enum VotesStates {
 }
 impl JanecekState {
     pub const NAME_LENGTH: usize = 32; // in bytes
-    pub const LEN_PARTY: usize = size_of::<u8>() // enum
+    pub const LEN_PARTY: usize = size_of::<u8>() // tag
         + size_of::<bool>() // initialized
         + size_of::<Pubkey>() // author
         + size_of::<Pubkey>() // voting state
@@ -64,7 +64,7 @@ impl JanecekState {
         + JanecekState::NAME_LENGTH // name buffer
         + size_of::<i64>() // votes
         + size_of::<u8>(); // bump
-    pub const LEN_VOTER: usize = size_of::<u8>() // enum
+    pub const LEN_VOTER: usize = size_of::<u8>() // tag
         + size_of::<bool>() // initialized
         + size_of::<Pubkey>() // author
         + size_of::<Pubkey>() // voting state
@@ -73,16 +73,18 @@ impl JanecekState {
         + size_of::<Pubkey>() // pos2
         + size_of::<Pubkey>() // neg1
         + size_of::<u8>(); // bump
-    pub const LEN_VOTINGSTATE: usize = size_of::<u8>() // enum
+    pub const LEN_VOTINGSTATE: usize = size_of::<u8>() // tag
         + size_of::<bool>() // initialized
         + size_of::<Pubkey>() // voting owner
         + size_of::<i64>() // started
         + size_of::<i64>() // ends
         + size_of::<u8>(); // bump
-    pub const LEN_VOTINGOWNER: usize = size_of::<u8>() // enum
+    pub const LEN_VOTINGOWNER: usize = size_of::<u8>() // tag
         + size_of::<bool>() // initialized
         + size_of::<Pubkey>() // author
         + size_of::<Pubkey>() // voting state
         + size_of::<u8>(); // bump
+
+    /// specifies length during voting/ creating party/voter is enabled - currently 7 days
     pub const VOTING_LENGTH: i64 = 7 * 24 * 60 * 60;
 }

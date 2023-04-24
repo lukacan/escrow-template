@@ -1,10 +1,3 @@
-use crate::entrypoint::id;
-use crate::error::JanecekError;
-use crate::instruction::{
-    get_owner_address, get_party_address, get_state_address, get_voter_address, JanecekInstruction,
-    VotePreference,
-};
-use crate::state::JanecekState;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -15,9 +8,14 @@ use solana_program::{
     sysvar::Sysvar,
 };
 
-use crate::try_functions;
-
+use crate::entrypoint::id;
+use crate::instruction::{
+    get_owner_address, get_party_address, get_state_address, get_voter_address, JanecekInstruction,
+    VotePreference,
+};
+use crate::state::JanecekState;
 use crate::state::VotesStates;
+use crate::try_functions;
 
 pub fn entry(
     program_id: &Pubkey,
@@ -109,12 +107,11 @@ fn process_initialize(_program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
 
     let pda_owner = next_account_info(accounts_iter)?;
     let (pda_owner_, bump_owner) = get_owner_address(*author.key);
-    try_functions::try_seeds(&pda_owner_, pda_owner.key)?;
-    //try_functions::try_system_owner(pda_owner)?;
+    try_functions::try_seeds(pda_owner, &pda_owner_)?;
 
     let pda_state = next_account_info(accounts_iter)?;
     let (pda_state_, bump_state) = get_state_address(pda_owner_);
-    try_functions::try_seeds(&pda_state_, pda_state.key)?;
+    try_functions::try_seeds(pda_state, &pda_state_)?;
 
     let system_program = next_account_info(accounts_iter)?;
     try_functions::try_system_program(system_program)?;
@@ -160,7 +157,6 @@ fn process_initialize(_program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
         .serialize(&mut &mut (*pda_owner.data).borrow_mut()[..])
         .unwrap();
 
-    // Is this OK ???
     match JanecekState::deserialize(&mut &(*pda_state.data).borrow_mut()[..])? {
         JanecekState::Fresh => {}
         JanecekState::VotingState { is_initialized, .. } => {
@@ -171,12 +167,9 @@ fn process_initialize(_program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
 
     let clock: Clock = Clock::get()?;
     let start = clock.unix_timestamp;
+    let mut end = start;
+    try_functions::try_checked_add(&mut end, JanecekState::VOTING_LENGTH)?;
 
-    // add 7 days to the current time, as voting lasts for 7 days
-    let end = match start.checked_add(JanecekState::VOTING_LENGTH) {
-        Some(sucess) => sucess,
-        None => return Err(JanecekError::AdditionOverflow.into()),
-    };
     let state = JanecekState::VotingState {
         is_initialized: true,
         voting_owner: *pda_owner.key,
@@ -207,29 +200,26 @@ fn process_create_party(
     // this is party author
     let author = next_account_info(accounts_iter)?;
     try_functions::try_signer(author)?;
-    //try_functions::try_system_owner(author)?;
 
-    // bad name but, owner here is owner of voting, so acc that called initialize
+    // owner here is owner of voting, so acc that called initialize
     let owner = next_account_info(accounts_iter)?;
     try_functions::try_signer(owner)?;
-    //try_functions::try_system_owner(owner)?;
 
     let pda_owner = next_account_info(accounts_iter)?;
     let (pda_owner_, bump_owner) = get_owner_address(*owner.key);
-    try_functions::try_seeds(&pda_owner_, pda_owner.key)?;
+    try_functions::try_seeds(pda_owner, &pda_owner_)?;
     try_functions::try_owner(pda_owner)?;
     try_functions::try_rent_exempt(pda_owner)?;
 
     let pda_state = next_account_info(accounts_iter)?;
     let (pda_state_, bump_state) = get_state_address(pda_owner_);
-    try_functions::try_seeds(&pda_state_, pda_state.key)?;
+    try_functions::try_seeds(pda_state, &pda_state_)?;
     try_functions::try_owner(pda_state)?;
     try_functions::try_rent_exempt(pda_state)?;
 
     let pda_party = next_account_info(accounts_iter)?;
     let (pda_party_, bump_party) = get_party_address(name, pda_state_);
-    try_functions::try_seeds(&pda_party_, pda_party.key)?;
-    //try_functions::try_system_owner(pda_party)?;
+    try_functions::try_seeds(pda_party, &pda_party_)?;
 
     let system_program = next_account_info(accounts_iter)?;
     try_functions::try_system_program(system_program)?;
@@ -314,27 +304,24 @@ fn process_create_voter(
 
     let author = next_account_info(accounts_iter)?;
     try_functions::try_signer(author)?;
-    //try_functions::try_system_owner(author)?;
 
     let owner = next_account_info(accounts_iter)?;
-    //try_functions::try_system_owner(owner)?;
 
     let pda_owner = next_account_info(accounts_iter)?;
     let (pda_owner_, bump_owner_) = get_owner_address(*owner.key);
     try_functions::try_owner(pda_owner)?;
-    try_functions::try_seeds(&pda_owner_, pda_owner.key)?;
+    try_functions::try_seeds(pda_owner, &pda_owner_)?;
     try_functions::try_rent_exempt(pda_owner)?;
 
     let pda_state = next_account_info(accounts_iter)?;
     let (pda_state_, bump_state_) = get_state_address(pda_owner_);
     try_functions::try_owner(pda_state)?;
-    try_functions::try_seeds(&pda_state_, pda_state.key)?;
+    try_functions::try_seeds(pda_state, &pda_state_)?;
     try_functions::try_rent_exempt(pda_state)?;
 
     let pda_voter = next_account_info(accounts_iter)?;
     let (pda_voter_, bump_voter) = get_voter_address(*author.key, pda_state_);
-    //try_functions::try_system_owner(pda_voter)?;
-    try_functions::try_seeds(&pda_voter_, pda_voter.key)?;
+    try_functions::try_seeds(pda_voter, &pda_voter_)?;
 
     let system_program = next_account_info(accounts_iter)?;
     try_functions::try_system_program(system_program)?;
@@ -424,35 +411,33 @@ fn process_vote(
 
     let accounts_iter = &mut accounts.iter();
 
-    let voter_author = next_account_info(accounts_iter)?;
-    try_functions::try_signer(voter_author)?;
-    //try_functions::try_system_owner(voter_author)?;
+    let author_ = next_account_info(accounts_iter)?;
+    try_functions::try_signer(author_)?;
 
     let owner = next_account_info(accounts_iter)?;
-    //try_functions::try_system_owner(owner)?;
 
     let pda_owner = next_account_info(accounts_iter)?;
     let (pda_owner_, bump_owner_) = get_owner_address(*owner.key);
     try_functions::try_owner(pda_owner)?;
-    try_functions::try_seeds(&pda_owner_, pda_owner.key)?;
+    try_functions::try_seeds(pda_owner, &pda_owner_)?;
     try_functions::try_rent_exempt(pda_owner)?;
 
     let pda_state = next_account_info(accounts_iter)?;
     let (pda_state_, bump_state_) = get_state_address(pda_owner_);
     try_functions::try_owner(pda_state)?;
-    try_functions::try_seeds(&pda_state_, pda_state.key)?;
+    try_functions::try_seeds(pda_state, &pda_state_)?;
     try_functions::try_rent_exempt(pda_state)?;
 
     let pda_voter = next_account_info(accounts_iter)?;
-    let (pda_voter_, bump_voter_) = get_voter_address(*voter_author.key, pda_state_);
+    let (pda_voter_, bump_voter_) = get_voter_address(*author_.key, pda_state_);
     try_functions::try_owner(pda_voter)?;
-    try_functions::try_seeds(&pda_voter_, pda_voter.key)?;
+    try_functions::try_seeds(pda_voter, &pda_voter_)?;
     try_functions::try_rent_exempt(pda_voter)?;
 
     let pda_party = next_account_info(accounts_iter)?;
     let (pda_party_, bump_party_) = get_party_address(name, pda_state_);
     try_functions::try_owner(pda_party)?;
-    try_functions::try_seeds(&pda_party_, pda_party.key)?;
+    try_functions::try_seeds(pda_party, &pda_party_)?;
     try_functions::try_rent_exempt(pda_party)?;
 
     match JanecekState::deserialize(&mut &(*pda_owner.data).borrow_mut()[..])? {
@@ -498,7 +483,7 @@ fn process_vote(
             bump,
         } => {
             try_functions::try_uninitialized(is_initialized)?;
-            try_functions::try_author(voter_author, &author)?;
+            try_functions::try_author(author_, &author)?;
             try_functions::try_voting_state(pda_state, &voting_state)?;
             try_functions::try_bumps(*bump_voter_provided, bump_voter_, bump)?;
             let mut new_votes = num_votes;
@@ -553,10 +538,10 @@ fn process_vote(
 
             match vote_preference {
                 VotePreference::Negative => {
-                    try_functions::try_decrease_votes(&mut new_votes)?;
+                    try_functions::try_checked_sub(&mut new_votes, 1)?;
                 }
                 VotePreference::Positive => {
-                    try_functions::try_increase_votes(&mut new_votes)?;
+                    try_functions::try_checked_add(&mut new_votes, 1)?;
                 }
             }
             JanecekState::Party {

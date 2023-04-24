@@ -7,24 +7,6 @@ use solana_program::{
 
 use crate::state::VotesStates;
 
-/// check if account is writable
-// pub fn try_writable(account: &AccountInfo) -> ProgramResult {
-//     if !account.is_writable {
-//         Err(JanecekError::AccountNotmutable.into())
-//     } else {
-//         Ok(())
-//     }
-// }
-
-/// check if owner is native system program
-// pub fn try_system_owner(account: &AccountInfo) -> ProgramResult {
-//     if *account.owner != solana_program::system_program::id() {
-//         Err(ProgramError::IllegalOwner)
-//     } else {
-//         Ok(())
-//     }
-// }
-
 /// check if account is Signer
 pub fn try_signer(account: &AccountInfo) -> ProgramResult {
     if !account.is_signer {
@@ -53,15 +35,15 @@ pub fn try_rent_exempt(account: &AccountInfo) -> ProgramResult {
 }
 
 /// check if provided PDA equals to derived PDA
-pub fn try_seeds(provided: &Pubkey, derived: &Pubkey) -> ProgramResult {
-    if provided != derived {
+pub fn try_seeds(provided: &AccountInfo, derived: &Pubkey) -> ProgramResult {
+    if provided.key != derived {
         Err(ProgramError::InvalidSeeds)
     } else {
         Ok(())
     }
 }
 
-/// check that provided and derived bumps are equal
+/// check that provided, derived and saved bumps are equal
 pub fn try_bumps(provided: u8, derived: u8, saved: u8) -> ProgramResult {
     if provided != derived || saved != derived {
         Err(ProgramError::InvalidSeeds)
@@ -78,7 +60,7 @@ pub fn try_system_program(account: &AccountInfo) -> ProgramResult {
     }
 }
 
-/// check if account already initialized
+/// check if account is already initialized
 pub fn try_initialized(is_initialized: bool) -> ProgramResult {
     if is_initialized {
         Err(ProgramError::AccountAlreadyInitialized)
@@ -87,7 +69,7 @@ pub fn try_initialized(is_initialized: bool) -> ProgramResult {
     }
 }
 
-/// check if account not initialized yet
+/// check if account is not initialized yet
 pub fn try_uninitialized(is_initialized: bool) -> ProgramResult {
     if !is_initialized {
         Err(ProgramError::UninitializedAccount)
@@ -119,7 +101,7 @@ pub fn try_author(author: &AccountInfo, data_author: &Pubkey) -> ProgramResult {
         Ok(())
     }
 }
-/// check if provided PDA address corresponds to Pubkey stored in data account
+/// check if provided PDA voting state address corresponds to Pubkey stored in data account
 pub fn try_voting_state(pda_state: &AccountInfo, voting_state: &Pubkey) -> ProgramResult {
     if *pda_state.key != *voting_state {
         Err(JanecekError::VotingStateMismatch.into())
@@ -127,7 +109,7 @@ pub fn try_voting_state(pda_state: &AccountInfo, voting_state: &Pubkey) -> Progr
         Ok(())
     }
 }
-/// check if provided PDA address corresponds to Pubkey stored in data account
+/// check if provided PDA voting owner address corresponds to Pubkey stored in data account
 pub fn try_voting_owner(pda_owner: &AccountInfo, voting_owner: &Pubkey) -> ProgramResult {
     if *pda_owner.key != *voting_owner {
         Err(JanecekError::VotingOwnerMismatch.into())
@@ -149,7 +131,7 @@ pub fn try_vote_positive(
             Ok(())
         }
         VotesStates::OneSpent => {
-            if pos1 == pos2 {
+            if pos1 == pda_party.key {
                 Err(JanecekError::NoBothPosSameParty.into())
             } else {
                 *num_votes = VotesStates::NoMorePositiveVotes;
@@ -162,7 +144,7 @@ pub fn try_vote_positive(
     }
 }
 
-/// function provides vote positive checks
+/// function provides vote negative checks
 pub fn try_vote_negative(
     num_votes: &mut VotesStates,
     neg1: &mut Pubkey,
@@ -181,20 +163,20 @@ pub fn try_vote_negative(
 }
 
 /// function provides checked add
-pub fn try_increase_votes(votes: &mut i64) -> ProgramResult {
-    match votes.checked_add(1) {
+pub fn try_checked_add(base: &mut i64, to_add: i64) -> ProgramResult {
+    match base.checked_add(to_add) {
         Some(sucess) => {
-            *votes = sucess;
+            *base = sucess;
             Ok(())
         }
         None => Err(JanecekError::AdditionOverflow.into()),
     }
 }
 /// function provides checked sub
-pub fn try_decrease_votes(votes: &mut i64) -> ProgramResult {
-    match votes.checked_sub(1) {
+pub fn try_checked_sub(base: &mut i64, to_sub: i64) -> ProgramResult {
+    match base.checked_sub(to_sub) {
         Some(sucess) => {
-            *votes = sucess;
+            *base = sucess;
             Ok(())
         }
         None => Err(JanecekError::SubtractionOverflow.into()),

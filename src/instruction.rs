@@ -123,24 +123,42 @@ pub enum JanecekInstruction {
 }
 
 impl JanecekInstruction {
-    pub const INIT_LEN: usize = 1;
-    pub const C_PARTY_LEN: usize =
-        size_of::<u8>() + size_of::<u8>() + size_of::<u8>() + size_of::<Pubkey>();
-    pub const C_VOTER_LEN: usize = size_of::<u8>() + size_of::<u8>() + size_of::<u8>();
-    pub const VOTE_P_LEN: usize = size_of::<u8>()
-        + size_of::<u8>()
-        + size_of::<u8>()
-        + size_of::<u8>()
-        + size_of::<u8>()
-        + size_of::<Pubkey>();
-    pub const VOTE_N_LEN: usize = size_of::<u8>()
-        + size_of::<u8>()
-        + size_of::<u8>()
-        + size_of::<u8>()
-        + size_of::<u8>()
-        + size_of::<Pubkey>();
+    /// specifies expected length of initialize instruction data
+    pub const INIT_LEN: usize = size_of::<u8>(); // tag
+
+    /// specifies expected length of create party instruction data
+    pub const C_PARTY_LEN: usize = size_of::<u8>() // tag
+        + size_of::<u8>() // bump owner
+        + size_of::<u8>() // bump state
+        + size_of::<u8>() * JanecekState::NAME_LENGTH; // party name
+
+    /// specifies expected length of create voter instruction data
+    pub const C_VOTER_LEN: usize = size_of::<u8>() // tag
+        + size_of::<u8>() // bump owner
+        + size_of::<u8>(); // bump state
+
+    /// specifies expected length of vote positive instruction data
+    pub const VOTE_P_LEN: usize = size_of::<u8>() // tag
+        + size_of::<u8>() // bump owner
+        + size_of::<u8>() // bump state
+        + size_of::<u8>() // bump voter
+        + size_of::<u8>() // bump party
+        + size_of::<u8>() * JanecekState::NAME_LENGTH; // party name
+
+    /// specifies expected length of vote negative instruction data
+    pub const VOTE_N_LEN: usize = size_of::<u8>() // tag
+        + size_of::<u8>() // bump owner
+        + size_of::<u8>() // bump state
+        + size_of::<u8>() // bump voter
+        + size_of::<u8>() // bump party
+        + size_of::<u8>() * JanecekState::NAME_LENGTH; // party name
 }
 
+fn string_to_bytearray(name: String) -> [u8; JanecekState::NAME_LENGTH] {
+    let mut name_bytearray: [u8; JanecekState::NAME_LENGTH] = [0u8; JanecekState::NAME_LENGTH];
+    name_bytearray[..name.len()].copy_from_slice(name.into_bytes().as_slice());
+    name_bytearray
+}
 pub fn get_owner_address(account: Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[b"voting_owner", account.as_ref()], &id())
 }
@@ -174,8 +192,7 @@ pub fn initialize(initializer: Pubkey) -> Instruction {
 }
 /// API call that generates instruction for Create Party
 pub fn create_party(initializer: Pubkey, party_author: Pubkey, name: String) -> Instruction {
-    let mut name_bytearray: [u8; JanecekState::NAME_LENGTH] = [0u8; JanecekState::NAME_LENGTH];
-    name_bytearray[..name.len()].copy_from_slice(name.into_bytes().as_slice());
+    let name_bytearray = string_to_bytearray(name);
 
     let (owner, bump_owner) = get_owner_address(initializer);
     let (state, bump_state) = get_state_address(owner);
@@ -231,8 +248,7 @@ pub fn vote(
     name: String,
     preference: VotePreference,
 ) -> Instruction {
-    let mut name_bytearray: [u8; JanecekState::NAME_LENGTH] = [0u8; JanecekState::NAME_LENGTH];
-    name_bytearray[..name.len()].copy_from_slice(name.into_bytes().as_slice());
+    let name_bytearray = string_to_bytearray(name);
     let (owner, bump_owner) = get_owner_address(initializer);
     let (state, bump_state) = get_state_address(owner);
     let (voter, bump_voter) = get_voter_address(voter_author, state);
