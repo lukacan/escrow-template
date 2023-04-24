@@ -1,5 +1,7 @@
-use bpf_program_template::instruction::{
-    create_party, create_voter, initialize, vote_negative, vote_positive,
+use borsh::BorshDeserialize;
+use bpf_program_template::{
+    instruction::{create_party, create_voter, initialize, vote_negative, vote_positive},
+    state::JanecekState,
 };
 use solana_client::rpc_client::RpcClient;
 use solana_program::native_token::LAMPORTS_PER_SOL;
@@ -123,4 +125,72 @@ pub fn add_account(testvalgen: &mut TestValidatorGenesis) -> Keypair {
     );
     testvalgen.add_account(alice.pubkey(), account);
     alice
+}
+#[allow(dead_code)]
+pub fn de_account_data(
+    account_data: &mut &[u8],
+) -> Option<bpf_program_template::state::JanecekState> {
+    match JanecekState::deserialize(account_data).unwrap() {
+        JanecekState::VotingOwner {
+            is_initialized,
+            author,
+            voting_state,
+            bump,
+        } => Some(JanecekState::VotingOwner {
+            is_initialized,
+            author,
+            voting_state,
+            bump,
+        }),
+        JanecekState::Fresh => None,
+        JanecekState::Party {
+            is_initialized,
+            author,
+            voting_state,
+            created,
+            name,
+            votes,
+            bump,
+        } => Some(JanecekState::Party {
+            is_initialized,
+            author,
+            voting_state,
+            created,
+            name,
+            votes,
+            bump,
+        }),
+        JanecekState::Voter {
+            is_initialized,
+            author,
+            voting_state,
+            num_votes,
+            pos1,
+            pos2,
+            neg1,
+            bump,
+        } => Some(JanecekState::Voter {
+            is_initialized,
+            author,
+            voting_state,
+            num_votes,
+            pos1,
+            pos2,
+            neg1,
+            bump,
+        }),
+        JanecekState::VotingState {
+            is_initialized,
+            voting_owner,
+            voting_started,
+            voting_ends,
+            bump,
+        } => Some(JanecekState::VotingState {
+            is_initialized,
+            voting_owner,
+            voting_started,
+            voting_ends,
+            bump,
+        }),
+    }
 }

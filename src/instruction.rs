@@ -154,7 +154,7 @@ impl JanecekInstruction {
         + size_of::<u8>() * JanecekState::NAME_LENGTH; // party name
 }
 
-fn string_to_bytearray(name: String) -> [u8; JanecekState::NAME_LENGTH] {
+pub fn string_to_bytearray(name: String) -> [u8; JanecekState::NAME_LENGTH] {
     let mut name_bytearray: [u8; JanecekState::NAME_LENGTH] = [0u8; JanecekState::NAME_LENGTH];
     name_bytearray[..name.len()].copy_from_slice(name.into_bytes().as_slice());
     name_bytearray
