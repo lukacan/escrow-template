@@ -12,6 +12,7 @@ pub enum JanecekState {
     // https://doc.rust-lang.org/reference/items/enumerations.html
     // consider during initialization, all values are set to 0, so
     // let`s have discriminants from 1
+    // enum with is_initialized can be redundant
     Fresh,
     Party {
         is_initialized: bool,
