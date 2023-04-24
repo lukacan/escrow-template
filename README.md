@@ -32,11 +32,11 @@
 - Party in specified context can`t be created after voting in the context ended.
 
 ### ***Questions***
-- ❓ **not using string in instruction data, but bytearray good/bad**
-- ❓ **deserialization on enum - what if i send instraction data too long, have test case for this**
-- ❓ **readability checks**
-- ❓ **system program owner check during initi/c_party/c_voter**
-- ❓ **error order, if voting state is not initalized and user wants to create party, owner check triggers first (account does not exists, so owner is system program), after that account initialized check is performed, but this behaviour can confuse users**
+- ❓ **not using string in instruction data, but bytearray good/bad = good ✅**
+- ❓ **deserialization on enum - what if i send instraction data too long, have test case for this = yep, check if all data deserialized✅**
+- ❓ **readability checks = no need to check this✅**
+- ❓ **system program owner check during initi/c_party/c_voter = no need to check this CPI, not possible with this✅**
+- ❓ **error order, if voting state is not initalized and user wants to create party, owner check triggers first (account does not exists, so owner is system program), after that account initialized check is performed, but this behaviour can confuse users = not so important, provide good documentation for this✅**
 
 ### 🍎***Initialize***
 - 🔴✅**Signer check**
