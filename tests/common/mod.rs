@@ -1,10 +1,13 @@
 use borsh::BorshDeserialize;
 use bpf_program_template::{
-    instruction::{create_party, create_voter, initialize, vote_negative, vote_positive},
-    state::JanecekState,
+    instruction::{
+        create_party, create_voter, get_owner_address, get_party_address, get_state_address,
+        get_voter_address, initialize, string_to_bytearray, vote_negative, vote_positive,
+    },
+    state::{JanecekState, VotesStates},
 };
 use solana_client::rpc_client::RpcClient;
-use solana_program::native_token::LAMPORTS_PER_SOL;
+use solana_program::{native_token::LAMPORTS_PER_SOL, pubkey::Pubkey};
 use solana_sdk::{
     account::AccountSharedData, declare_id, signature::Keypair, signature::Signer,
     transaction::Transaction,
@@ -193,4 +196,122 @@ pub fn de_account_data(
             bump,
         }),
     }
+}
+#[allow(dead_code)]
+pub fn compare_voting_owner_data(rpc_client: &RpcClient, initializer: &Keypair) {
+    let (pda_owner, _owner_bump) = get_owner_address(initializer.pubkey());
+    let (pda_state, _state_bump) = get_state_address(pda_owner);
+
+    let voting_owner_acc = rpc_client.get_account(&pda_owner).unwrap();
+    let voting_owner_data = de_account_data(&mut voting_owner_acc.data.as_slice()).unwrap();
+
+    assert_eq!(voting_owner_acc.owner, id());
+    assert_eq!(
+        voting_owner_data,
+        JanecekState::VotingOwner {
+            is_initialized: true,
+            author: initializer.pubkey(),
+            voting_state: pda_state,
+            bump: _owner_bump
+        }
+    );
+}
+#[allow(dead_code)]
+pub fn compare_voting_state_data(rpc_client: &RpcClient, initializer: &Keypair) {
+    let (pda_owner, _owner_bump) = get_owner_address(initializer.pubkey());
+    let (pda_state, _state_bump) = get_state_address(pda_owner);
+
+    let voting_state_acc = rpc_client.get_account(&pda_state).unwrap();
+    let voting_state_data = de_account_data(&mut voting_state_acc.data.as_slice()).unwrap();
+
+    assert_eq!(voting_state_acc.owner, id());
+    match voting_state_data {
+        bpf_program_template::state::JanecekState::VotingState {
+            is_initialized,
+            voting_owner,
+            voting_started,
+            voting_ends,
+            bump,
+        } => {
+            assert!(is_initialized);
+            assert_eq!(voting_owner, pda_owner);
+            assert_eq!(voting_ends - voting_started, JanecekState::VOTING_LENGTH);
+            assert_eq!(bump, _state_bump);
+        }
+        _ => {
+            assert_eq!(false, true);
+        }
+    }
+}
+#[allow(dead_code)]
+pub fn compare_party_data(
+    rpc_client: &RpcClient,
+    initializer: &Keypair,
+    party_author: &Keypair,
+    party_name: &str,
+    num_votes: i64,
+) {
+    let (pda_owner, _owner_bump) = get_owner_address(initializer.pubkey());
+    let (pda_state, _state_bump) = get_state_address(pda_owner);
+    let name_bytearray = string_to_bytearray(String::from(party_name));
+    let (pda_party, _party_bump) = get_party_address(&name_bytearray, pda_state);
+
+    let party_acc = rpc_client.get_account(&pda_party).unwrap();
+
+    assert_eq!(party_acc.owner, id());
+
+    let party_data = de_account_data(&mut party_acc.data.as_slice()).unwrap();
+
+    match party_data {
+        bpf_program_template::state::JanecekState::Party {
+            is_initialized,
+            author,
+            voting_state,
+            created: _,
+            name,
+            votes,
+            bump,
+        } => {
+            assert!(is_initialized);
+            assert_eq!(author, party_author.pubkey());
+            assert_eq!(voting_state, pda_state);
+            assert_eq!(name, name_bytearray);
+            assert_eq!(votes, num_votes);
+            assert_eq!(bump, _party_bump);
+        }
+        _ => {
+            assert_eq!(false, true);
+        }
+    }
+}
+#[allow(dead_code)]
+pub fn compare_voter_data(
+    rpc_client: &RpcClient,
+    initializer: &Keypair,
+    bob: &Keypair,
+    num_votes_ref: VotesStates,
+    pos1_ref: Pubkey,
+    pos2_ref: Pubkey,
+    neg1_ref: Pubkey,
+) {
+    let (pda_owner, _owner_bump) = get_owner_address(initializer.pubkey());
+    let (pda_state, _state_bump) = get_state_address(pda_owner);
+    let (pda_voter, _voter_bump) = get_voter_address(bob.pubkey(), pda_state);
+
+    let voter_acc = rpc_client.get_account(&pda_voter).unwrap();
+    assert_eq!(voter_acc.owner, id());
+    let voter_data = de_account_data(&mut voter_acc.data.as_slice()).unwrap();
+    assert_eq!(
+        voter_data,
+        JanecekState::Voter {
+            is_initialized: true,
+            author: bob.pubkey(),
+            voting_state: pda_state,
+            num_votes: num_votes_ref,
+            pos1: pos1_ref,
+            pos2: pos2_ref,
+            neg1: neg1_ref,
+            bump: _voter_bump
+        }
+    );
 }

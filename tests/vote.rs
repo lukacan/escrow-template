@@ -1,9 +1,6 @@
 use assert_matches::*;
 use bpf_program_template::{
-    instruction::{
-        get_owner_address, get_party_address, get_state_address, get_voter_address,
-        string_to_bytearray,
-    },
+    instruction::{get_owner_address, get_party_address, get_state_address, string_to_bytearray},
     state::VotesStates,
 };
 use solana_sdk::signer::Signer;
@@ -24,6 +21,8 @@ fn test_try_vote_basic1() {
         common::initialize_transaction(&rpc_client, &initializer),
         Ok(_)
     );
+    common::compare_voting_owner_data(&rpc_client, &initializer);
+    common::compare_voting_state_data(&rpc_client, &initializer);
     assert_matches!(
         common::create_voter_transaction(&rpc_client, &initializer, &bob),
         Ok(_)
@@ -53,7 +52,6 @@ fn test_try_vote_basic2() {
 
     let (pda_owner, _owner_bump) = get_owner_address(initializer.pubkey());
     let (pda_state, _state_bump) = get_state_address(pda_owner);
-    let (pda_voter, _voter_bump) = get_voter_address(bob.pubkey(), pda_state);
 
     let name_bytearray = string_to_bytearray(String::from(party_alice));
     let (pda_party_alice, _party_alice_bump) = get_party_address(&name_bytearray, pda_state);
@@ -65,140 +63,79 @@ fn test_try_vote_basic2() {
         common::initialize_transaction(&rpc_client, &initializer),
         Ok(_)
     );
+    common::compare_voting_owner_data(&rpc_client, &initializer);
+    common::compare_voting_state_data(&rpc_client, &initializer);
+
     assert_matches!(
         common::create_voter_transaction(&rpc_client, &initializer, &bob),
         Ok(_)
     );
-    let voter_acc = rpc_client.get_account(&pda_voter).unwrap();
-    assert_eq!(voter_acc.owner, common::id());
-    let voter_data = common::de_account_data(&mut voter_acc.data.as_slice()).unwrap();
-    match voter_data {
-        bpf_program_template::state::JanecekState::Voter {
-            is_initialized,
-            author,
-            voting_state,
-            num_votes,
-            pos1,
-            pos2,
-            neg1,
-            bump,
-        } => {
-            assert!(is_initialized);
-            assert_eq!(author, bob.pubkey());
-            assert_eq!(voting_state, pda_state);
-            assert_eq!(num_votes, VotesStates::Full);
-            assert_eq!(pos1, solana_program::system_program::id());
-            assert_eq!(pos2, solana_program::system_program::id());
-            assert_eq!(neg1, solana_program::system_program::id());
-            assert_eq!(bump, _voter_bump);
-        }
-        _ => {
-            assert_eq!(false, true);
-        }
-    }
+    common::compare_voter_data(
+        &rpc_client,
+        &initializer,
+        &bob,
+        VotesStates::Full,
+        solana_program::system_program::id(),
+        solana_program::system_program::id(),
+        solana_program::system_program::id(),
+    );
 
     assert_matches!(
         common::create_party_transaction(&rpc_client, &initializer, &alice, party_alice),
         Ok(_)
     );
+    common::compare_party_data(&rpc_client, &initializer, &alice, party_alice, 0);
+
     assert_matches!(
         common::create_vote_pos_transaction(&rpc_client, &initializer, &bob, party_alice),
         Ok(_)
     );
-    let voter_acc = rpc_client.get_account(&pda_voter).unwrap();
-    let voter_data = common::de_account_data(&mut voter_acc.data.as_slice()).unwrap();
-    match voter_data {
-        bpf_program_template::state::JanecekState::Voter {
-            is_initialized,
-            author,
-            voting_state,
-            num_votes,
-            pos1,
-            pos2,
-            neg1,
-            bump,
-        } => {
-            assert!(is_initialized);
-            assert_eq!(author, bob.pubkey());
-            assert_eq!(voting_state, pda_state);
-            assert_eq!(num_votes, VotesStates::OneSpent);
-            assert_eq!(pos1, pda_party_alice);
-            assert_eq!(pos2, solana_program::system_program::id());
-            assert_eq!(neg1, solana_program::system_program::id());
-            assert_eq!(bump, _voter_bump);
-        }
-        _ => {
-            assert_eq!(false, true);
-        }
-    }
+    common::compare_party_data(&rpc_client, &initializer, &alice, party_alice, 1);
+    common::compare_voter_data(
+        &rpc_client,
+        &initializer,
+        &bob,
+        VotesStates::OneSpent,
+        pda_party_alice,
+        solana_program::system_program::id(),
+        solana_program::system_program::id(),
+    );
 
     assert_matches!(
         common::create_party_transaction(&rpc_client, &initializer, &ben, party_ben),
         Ok(_)
     );
+    common::compare_party_data(&rpc_client, &initializer, &ben, party_ben, 0);
+
     assert_matches!(
         common::create_vote_pos_transaction(&rpc_client, &initializer, &bob, party_ben),
         Ok(_)
     );
-    let voter_acc = rpc_client.get_account(&pda_voter).unwrap();
-    let voter_data = common::de_account_data(&mut voter_acc.data.as_slice()).unwrap();
-    match voter_data {
-        bpf_program_template::state::JanecekState::Voter {
-            is_initialized,
-            author,
-            voting_state,
-            num_votes,
-            pos1,
-            pos2,
-            neg1,
-            bump,
-        } => {
-            assert!(is_initialized);
-            assert_eq!(author, bob.pubkey());
-            assert_eq!(voting_state, pda_state);
-            assert_eq!(num_votes, VotesStates::NoMorePositiveVotes);
-            assert_eq!(pos1, pda_party_alice);
-            assert_eq!(pos2, pda_party_ben);
-            assert_eq!(neg1, solana_program::system_program::id());
-            assert_eq!(bump, _voter_bump);
-        }
-        _ => {
-            assert_eq!(false, true);
-        }
-    }
+    common::compare_party_data(&rpc_client, &initializer, &ben, party_ben, 1);
+    common::compare_voter_data(
+        &rpc_client,
+        &initializer,
+        &bob,
+        VotesStates::NoMorePositiveVotes,
+        pda_party_alice,
+        pda_party_ben,
+        solana_program::system_program::id(),
+    );
 
     assert_matches!(
         common::create_vote_neg_transaction(&rpc_client, &initializer, &bob, party_ben),
         Ok(_)
     );
-    let voter_acc = rpc_client.get_account(&pda_voter).unwrap();
-
-    let voter_data = common::de_account_data(&mut voter_acc.data.as_slice()).unwrap();
-
-    match voter_data {
-        bpf_program_template::state::JanecekState::Voter {
-            is_initialized,
-            author,
-            voting_state,
-            num_votes,
-            pos1,
-            pos2,
-            neg1,
-            bump,
-        } => {
-            assert!(is_initialized);
-            assert_eq!(author, bob.pubkey());
-            assert_eq!(voting_state, pda_state);
-            assert_eq!(num_votes, VotesStates::NoMoreVotes);
-            assert_eq!(pos1, pda_party_alice);
-            assert_eq!(pos2, pda_party_ben);
-            assert_eq!(neg1, pda_party_ben);
-            assert_eq!(bump, _voter_bump);
-        }
-        _ => {
-            assert_eq!(false, true);
-        }
-    }
+    common::compare_party_data(&rpc_client, &initializer, &ben, party_ben, 0);
+    common::compare_voter_data(
+        &rpc_client,
+        &initializer,
+        &bob,
+        VotesStates::NoMoreVotes,
+        pda_party_alice,
+        pda_party_ben,
+        pda_party_ben,
+    );
 }
 
 #[test]
@@ -216,6 +153,8 @@ fn test_try_vote_basic3() {
         common::initialize_transaction(&rpc_client, &initializer),
         Ok(_)
     );
+    common::compare_voting_owner_data(&rpc_client, &initializer);
+    common::compare_voting_state_data(&rpc_client, &initializer);
     assert_matches!(
         common::create_voter_transaction(&rpc_client, &initializer, &bob),
         Ok(_)
@@ -257,6 +196,8 @@ fn test_try_vote_basic4() {
         common::initialize_transaction(&rpc_client, &initializer),
         Ok(_)
     );
+    common::compare_voting_owner_data(&rpc_client, &initializer);
+    common::compare_voting_state_data(&rpc_client, &initializer);
     assert_matches!(
         common::create_voter_transaction(&rpc_client, &initializer, &bob),
         Ok(_)

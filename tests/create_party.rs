@@ -2,7 +2,7 @@ use core::time;
 use std::thread;
 
 use bpf_program_template::{
-    instruction::{get_owner_address, get_party_address, get_state_address, string_to_bytearray},
+    instruction::{get_owner_address, get_party_address, get_state_address},
     state::JanecekState,
 };
 // #![cfg(feature = "test-sbf")]
@@ -36,38 +36,7 @@ fn test_create_party_basic1() {
         Ok(_)
     );
 
-    let (pda_owner, _owner_bump) = get_owner_address(initializer.pubkey());
-    let (pda_state, _state_bump) = get_state_address(pda_owner);
-    let name_bytearray = string_to_bytearray(String::from(party_name));
-    let (pda_party, _party_bump) = get_party_address(&name_bytearray, pda_state);
-
-    let party_acc = rpc_client.get_account(&pda_party).unwrap();
-
-    assert_eq!(party_acc.owner, common::id());
-
-    let party_data = common::de_account_data(&mut party_acc.data.as_slice()).unwrap();
-
-    match party_data {
-        bpf_program_template::state::JanecekState::Party {
-            is_initialized,
-            author,
-            voting_state,
-            created: _,
-            name,
-            votes,
-            bump,
-        } => {
-            assert!(is_initialized);
-            assert_eq!(author, alice.pubkey());
-            assert_eq!(voting_state, pda_state);
-            assert_eq!(name, name_bytearray);
-            assert_eq!(votes, 0);
-            assert_eq!(bump, _party_bump);
-        }
-        _ => {
-            assert_eq!(false, true);
-        }
-    }
+    common::compare_party_data(&rpc_client, &initializer, &alice, party_name, 0);
 }
 /// try to reinitialize party
 #[test]
@@ -88,6 +57,7 @@ fn test_create_party_basic2() {
         common::create_party_transaction(&rpc_client, &initializer, &alice, party_name,),
         Ok(_)
     );
+    common::compare_party_data(&rpc_client, &initializer, &alice, party_name, 0);
 
     assert_matches!(
         common::create_party_transaction(&rpc_client, &initializer, &alice, party_name,),

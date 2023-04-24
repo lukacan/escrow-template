@@ -1,7 +1,7 @@
 use assert_matches::*;
 use bpf_program_template::{
     instruction::{get_owner_address, get_state_address, get_voter_address},
-    state::VotesStates,
+    state::{JanecekState, VotesStates},
 };
 use solana_sdk::signer::Signer;
 
@@ -35,30 +35,19 @@ fn test_create_voter_basic1() {
 
     let voter_data = common::de_account_data(&mut voter_acc.data.as_slice()).unwrap();
 
-    match voter_data {
-        bpf_program_template::state::JanecekState::Voter {
-            is_initialized,
-            author,
-            voting_state,
-            num_votes,
-            pos1,
-            pos2,
-            neg1,
-            bump,
-        } => {
-            assert!(is_initialized);
-            assert_eq!(author, bob.pubkey());
-            assert_eq!(voting_state, pda_state);
-            assert_eq!(num_votes, VotesStates::Full);
-            assert_eq!(pos1, solana_program::system_program::id());
-            assert_eq!(pos2, solana_program::system_program::id());
-            assert_eq!(neg1, solana_program::system_program::id());
-            assert_eq!(bump, _voter_bump);
+    assert_eq!(
+        voter_data,
+        JanecekState::Voter {
+            is_initialized: true,
+            author: bob.pubkey(),
+            voting_state: pda_state,
+            num_votes: VotesStates::Full,
+            pos1: solana_program::system_program::id(),
+            pos2: solana_program::system_program::id(),
+            neg1: solana_program::system_program::id(),
+            bump: _voter_bump
         }
-        _ => {
-            assert_eq!(false, true);
-        }
-    }
+    );
 }
 /// try to reinitialize voter
 #[test]
