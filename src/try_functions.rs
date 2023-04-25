@@ -182,6 +182,7 @@ pub fn try_checked_sub(base: &mut i64, to_sub: i64) -> ProgramResult {
         None => Err(JanecekError::SubtractionOverflow.into()),
     }
 }
+// https://solanacookbook.com/core-concepts/cpi.html#cpi-accountinfo
 /// create_account or transfer/allocate/assign
 pub fn try_create_or_assign(
     from_account: &AccountInfo,
@@ -225,7 +226,6 @@ pub fn try_create_or_assign(
             account_infos,
             signers_seeds,
         )?;
-
         program::invoke_signed(
             &system_instruction::assign(to_account.key, &id()),
             account_infos,

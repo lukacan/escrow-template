@@ -16,6 +16,7 @@ use solana_validator::test_validator::*;
 
 declare_id!("Fnambs3f1XXoMmAVc94bf8t6JDAxmVkXz85XU4v2edph");
 
+/// initialize TestValidator
 #[allow(dead_code)]
 pub fn init_env() -> TestValidatorGenesis {
     // solana_logger::setup_with_default("solana_program_runtime=debug");
@@ -24,6 +25,8 @@ pub fn init_env() -> TestValidatorGenesis {
     testvalgen.add_program("target/deploy/bpf_program_template", id());
     testvalgen
 }
+
+/// Transaction for Initialize Instruction
 #[allow(dead_code)]
 pub fn initialize_transaction(
     rpc_client: &RpcClient,
@@ -39,6 +42,8 @@ pub fn initialize_transaction(
     transaction.sign(&[initializer], blockhash);
     rpc_client.send_and_confirm_transaction(&transaction)
 }
+
+/// Transaction for Create Party Instruction
 #[allow(dead_code)]
 pub fn create_party_transaction(
     rpc_client: &RpcClient,
@@ -60,6 +65,8 @@ pub fn create_party_transaction(
     transaction.sign(&[author, initializer], blockhash);
     rpc_client.send_and_confirm_transaction(&transaction)
 }
+
+/// Transaction for Create Voter Instruction
 #[allow(dead_code)]
 pub fn create_voter_transaction(
     rpc_client: &RpcClient,
@@ -76,6 +83,8 @@ pub fn create_voter_transaction(
     transaction.sign(&[author], blockhash);
     rpc_client.send_and_confirm_transaction(&transaction)
 }
+
+/// Transaction for Vote Positive Instruction
 #[allow(dead_code)]
 pub fn create_vote_pos_transaction(
     rpc_client: &RpcClient,
@@ -97,6 +106,8 @@ pub fn create_vote_pos_transaction(
     transaction.sign(&[author], blockhash);
     rpc_client.send_and_confirm_transaction(&transaction)
 }
+
+/// Transaction for Vote Negative Instruction
 #[allow(dead_code)]
 pub fn create_vote_neg_transaction(
     rpc_client: &RpcClient,
@@ -118,6 +129,8 @@ pub fn create_vote_neg_transaction(
     transaction.sign(&[author], blockhash);
     rpc_client.send_and_confirm_transaction(&transaction)
 }
+
+/// Add account into Test Validator
 #[allow(dead_code)]
 pub fn add_account(testvalgen: &mut TestValidatorGenesis) -> Keypair {
     let alice = Keypair::new();
@@ -129,6 +142,8 @@ pub fn add_account(testvalgen: &mut TestValidatorGenesis) -> Keypair {
     testvalgen.add_account(alice.pubkey(), account);
     alice
 }
+
+/// Deserialize Account Data
 #[allow(dead_code)]
 pub fn de_account_data(
     account_data: &mut &[u8],
@@ -197,6 +212,8 @@ pub fn de_account_data(
         }),
     }
 }
+
+/// Check if Voting Owner data corresponds to what we expect
 #[allow(dead_code)]
 pub fn compare_voting_owner_data(rpc_client: &RpcClient, initializer: &Keypair) {
     let (pda_owner, _owner_bump) = get_owner_address(initializer.pubkey());
@@ -216,6 +233,9 @@ pub fn compare_voting_owner_data(rpc_client: &RpcClient, initializer: &Keypair) 
         }
     );
 }
+/// Check if Voting Owner data corresponds to what we expect
+
+/// Check if Voting State data corresponds to what we expect
 #[allow(dead_code)]
 pub fn compare_voting_state_data(rpc_client: &RpcClient, initializer: &Keypair) {
     let (pda_owner, _owner_bump) = get_owner_address(initializer.pubkey());
@@ -243,6 +263,8 @@ pub fn compare_voting_state_data(rpc_client: &RpcClient, initializer: &Keypair) 
         }
     }
 }
+
+/// Check if Party data corresponds to what we expect
 #[allow(dead_code)]
 pub fn compare_party_data(
     rpc_client: &RpcClient,
@@ -284,6 +306,8 @@ pub fn compare_party_data(
         }
     }
 }
+
+/// Check if Voter data corresponds to what we expect
 #[allow(dead_code)]
 pub fn compare_voter_data(
     rpc_client: &RpcClient,

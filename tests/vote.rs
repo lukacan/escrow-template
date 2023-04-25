@@ -6,46 +6,21 @@ use bpf_program_template::{
 use solana_sdk::signer::Signer;
 mod common;
 
+///complex vote test with vote positive, reinitializations etc.
 #[test]
-fn test_try_vote_basic1() {
+fn test1_try_vote_complex() {
     let mut testvalgen = common::init_env();
     let initializer = common::add_account(&mut testvalgen);
-    let bob = common::add_account(&mut testvalgen);
-    let alice = common::add_account(&mut testvalgen);
-    let party_name = "Alice Party";
 
-    let (test_validator, _payer) = testvalgen.start();
-    let rpc_client = test_validator.get_rpc_client();
+    let bob = common::add_account(&mut testvalgen); // party owner 1
+    let alice = common::add_account(&mut testvalgen); // party owner 2
+    let michael = common::add_account(&mut testvalgen); // party owner 3
 
-    assert_matches!(
-        common::initialize_transaction(&rpc_client, &initializer),
-        Ok(_)
-    );
-    common::compare_voting_owner_data(&rpc_client, &initializer);
-    common::compare_voting_state_data(&rpc_client, &initializer);
-    assert_matches!(
-        common::create_voter_transaction(&rpc_client, &initializer, &bob),
-        Ok(_)
-    );
-    assert_matches!(
-        common::create_party_transaction(&rpc_client, &initializer, &alice, party_name),
-        Ok(_)
-    );
-    assert_matches!(
-        common::create_vote_pos_transaction(&rpc_client, &initializer, &bob, party_name),
-        Ok(_)
-    );
-}
+    let party_alice = "ラウトは難しいです！";
+    let party_ben = "ウトは難しいです！";
+    let party_michael = "Andrej Babis";
 
-#[test]
-fn test_try_vote_basic2() {
-    let mut testvalgen = common::init_env();
-    let initializer = common::add_account(&mut testvalgen);
-    let bob = common::add_account(&mut testvalgen);
-    let alice = common::add_account(&mut testvalgen);
-    let ben = common::add_account(&mut testvalgen);
-    let party_alice = "Alice Party";
-    let party_ben = "Ben Party";
+    let ben = common::add_account(&mut testvalgen); // this is voter
 
     let (test_validator, _payer) = testvalgen.start();
     let rpc_client = test_validator.get_rpc_client();
@@ -59,6 +34,20 @@ fn test_try_vote_basic2() {
     let name_bytearray = string_to_bytearray(String::from(party_ben));
     let (pda_party_ben, _party_ben_bump) = get_party_address(&name_bytearray, pda_state);
 
+    let name_bytearray = string_to_bytearray(String::from(party_michael));
+    let (pda_party_michael, _party_michael_bump) = get_party_address(&name_bytearray, pda_state);
+
+    // try create in unintialized contetx
+    assert_matches!(
+        common::create_voter_transaction(&rpc_client, &initializer, &bob),
+        Err(_)
+    );
+    assert_matches!(
+        common::create_party_transaction(&rpc_client, &initializer, &alice, party_alice),
+        Err(_)
+    );
+
+    // initialize context
     assert_matches!(
         common::initialize_transaction(&rpc_client, &initializer),
         Ok(_)
@@ -66,6 +55,7 @@ fn test_try_vote_basic2() {
     common::compare_voting_owner_data(&rpc_client, &initializer);
     common::compare_voting_state_data(&rpc_client, &initializer);
 
+    // create voter
     assert_matches!(
         common::create_voter_transaction(&rpc_client, &initializer, &bob),
         Ok(_)
@@ -80,12 +70,24 @@ fn test_try_vote_basic2() {
         solana_program::system_program::id(),
     );
 
+    // create parties
     assert_matches!(
         common::create_party_transaction(&rpc_client, &initializer, &alice, party_alice),
         Ok(_)
     );
+    assert_matches!(
+        common::create_party_transaction(&rpc_client, &initializer, &ben, party_ben),
+        Ok(_)
+    );
+    assert_matches!(
+        common::create_party_transaction(&rpc_client, &initializer, &michael, party_michael),
+        Ok(_)
+    );
     common::compare_party_data(&rpc_client, &initializer, &alice, party_alice, 0);
+    common::compare_party_data(&rpc_client, &initializer, &ben, party_ben, 0);
+    common::compare_party_data(&rpc_client, &initializer, &michael, party_michael, 0);
 
+    // vote positive
     assert_matches!(
         common::create_vote_pos_transaction(&rpc_client, &initializer, &bob, party_alice),
         Ok(_)
@@ -101,12 +103,29 @@ fn test_try_vote_basic2() {
         solana_program::system_program::id(),
     );
 
+    // try to reinitialize alice party
     assert_matches!(
-        common::create_party_transaction(&rpc_client, &initializer, &ben, party_ben),
-        Ok(_)
+        common::create_party_transaction(&rpc_client, &initializer, &alice, party_alice),
+        Err(_)
     );
-    common::compare_party_data(&rpc_client, &initializer, &ben, party_ben, 0);
+    common::compare_party_data(&rpc_client, &initializer, &alice, party_alice, 1);
 
+    // vote negative withour spending 2 pos votes
+    assert_matches!(
+        common::create_vote_neg_transaction(&rpc_client, &initializer, &bob, party_ben),
+        Err(_)
+    );
+    common::compare_voter_data(
+        &rpc_client,
+        &initializer,
+        &bob,
+        VotesStates::OneSpent,
+        pda_party_alice,
+        solana_program::system_program::id(),
+        solana_program::system_program::id(),
+    );
+
+    // vote positive for party ben
     assert_matches!(
         common::create_vote_pos_transaction(&rpc_client, &initializer, &bob, party_ben),
         Ok(_)
@@ -122,11 +141,15 @@ fn test_try_vote_basic2() {
         solana_program::system_program::id(),
     );
 
+    // vote negative for party michael
     assert_matches!(
-        common::create_vote_neg_transaction(&rpc_client, &initializer, &bob, party_ben),
+        common::create_vote_neg_transaction(&rpc_client, &initializer, &bob, party_michael),
         Ok(_)
     );
-    common::compare_party_data(&rpc_client, &initializer, &ben, party_ben, 0);
+    common::compare_party_data(&rpc_client, &initializer, &ben, party_ben, 1);
+    common::compare_party_data(&rpc_client, &initializer, &alice, party_alice, 1);
+    common::compare_party_data(&rpc_client, &initializer, &michael, party_michael, -1);
+
     common::compare_voter_data(
         &rpc_client,
         &initializer,
@@ -134,80 +157,43 @@ fn test_try_vote_basic2() {
         VotesStates::NoMoreVotes,
         pda_party_alice,
         pda_party_ben,
+        pda_party_michael,
+    );
+
+    // reinitialize everything
+    assert_matches!(
+        common::initialize_transaction(&rpc_client, &initializer),
+        Err(_)
+    );
+    common::compare_voting_owner_data(&rpc_client, &initializer);
+    common::compare_voting_state_data(&rpc_client, &initializer);
+
+    assert_matches!(
+        common::create_voter_transaction(&rpc_client, &initializer, &bob),
+        Err(_)
+    );
+    assert_matches!(
+        common::create_party_transaction(&rpc_client, &initializer, &alice, party_alice),
+        Err(_)
+    );
+    assert_matches!(
+        common::create_party_transaction(&rpc_client, &initializer, &ben, party_ben),
+        Err(_)
+    );
+    assert_matches!(
+        common::create_party_transaction(&rpc_client, &initializer, &michael, party_michael),
+        Err(_)
+    );
+    common::compare_party_data(&rpc_client, &initializer, &alice, party_alice, 1);
+    common::compare_party_data(&rpc_client, &initializer, &ben, party_ben, 1);
+    common::compare_party_data(&rpc_client, &initializer, &michael, party_michael, -1);
+    common::compare_voter_data(
+        &rpc_client,
+        &initializer,
+        &bob,
+        VotesStates::NoMoreVotes,
+        pda_party_alice,
         pda_party_ben,
-    );
-}
-
-#[test]
-fn test_try_vote_basic3() {
-    let mut testvalgen = common::init_env();
-    let initializer = common::add_account(&mut testvalgen);
-    let bob = common::add_account(&mut testvalgen);
-    let alice = common::add_account(&mut testvalgen);
-    let party_name = "ラウトは難しいです！";
-
-    let (test_validator, _payer) = testvalgen.start();
-    let rpc_client = test_validator.get_rpc_client();
-
-    assert_matches!(
-        common::initialize_transaction(&rpc_client, &initializer),
-        Ok(_)
-    );
-    common::compare_voting_owner_data(&rpc_client, &initializer);
-    common::compare_voting_state_data(&rpc_client, &initializer);
-    assert_matches!(
-        common::create_voter_transaction(&rpc_client, &initializer, &bob),
-        Ok(_)
-    );
-    assert_matches!(
-        common::create_party_transaction(&rpc_client, &initializer, &alice, party_name),
-        Ok(_)
-    );
-    assert_matches!(
-        common::create_vote_pos_transaction(&rpc_client, &initializer, &bob, party_name),
-        Ok(_)
-    );
-}
-
-#[test]
-fn test_try_vote_basic4() {
-    let mut testvalgen = common::init_env();
-    let initializer = common::add_account(&mut testvalgen);
-    let bob = common::add_account(&mut testvalgen);
-    let alice = common::add_account(&mut testvalgen);
-    let party_name = "ラウトは難しいです！";
-
-    let (test_validator, _payer) = testvalgen.start();
-    let rpc_client = test_validator.get_rpc_client();
-
-    assert_matches!(
-        common::create_voter_transaction(&rpc_client, &initializer, &bob),
-        Err(_)
-    );
-    assert_matches!(
-        common::create_party_transaction(&rpc_client, &initializer, &alice, party_name),
-        Err(_)
-    );
-    assert_matches!(
-        common::create_vote_pos_transaction(&rpc_client, &initializer, &bob, party_name),
-        Err(_)
-    );
-    assert_matches!(
-        common::initialize_transaction(&rpc_client, &initializer),
-        Ok(_)
-    );
-    common::compare_voting_owner_data(&rpc_client, &initializer);
-    common::compare_voting_state_data(&rpc_client, &initializer);
-    assert_matches!(
-        common::create_voter_transaction(&rpc_client, &initializer, &bob),
-        Ok(_)
-    );
-    assert_matches!(
-        common::create_party_transaction(&rpc_client, &initializer, &alice, party_name),
-        Ok(_)
-    );
-    assert_matches!(
-        common::create_vote_pos_transaction(&rpc_client, &initializer, &bob, party_name),
-        Ok(_)
+        pda_party_michael,
     );
 }
