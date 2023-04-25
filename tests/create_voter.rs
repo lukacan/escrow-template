@@ -1,6 +1,3 @@
-use assert_matches::*;
-use bpf_program_template::state::VotesStates;
-
 mod common;
 /// basic try create voter
 #[test]
@@ -12,11 +9,11 @@ fn test1_create_voter_basic() {
     let (test_validator, _payer) = testvalgen.start();
     let rpc_client = test_validator.get_rpc_client();
 
-    assert_matches!(
+    common::assert_matches!(
         common::initialize_transaction(&rpc_client, &initializer),
         Ok(_)
     );
-    assert_matches!(
+    common::assert_matches!(
         common::create_voter_transaction(&rpc_client, &initializer, &bob),
         Ok(_)
     );
@@ -25,7 +22,7 @@ fn test1_create_voter_basic() {
         &rpc_client,
         &initializer,
         &bob,
-        VotesStates::Full,
+        common::VotesStates::Full,
         solana_program::system_program::id(),
         solana_program::system_program::id(),
         solana_program::system_program::id(),
@@ -41,11 +38,11 @@ fn test2_create_voter_reinitialize() {
     let (test_validator, _payer) = testvalgen.start();
     let rpc_client = test_validator.get_rpc_client();
 
-    assert_matches!(
+    common::assert_matches!(
         common::initialize_transaction(&rpc_client, &initializer),
         Ok(_)
     );
-    assert_matches!(
+    common::assert_matches!(
         common::create_voter_transaction(&rpc_client, &initializer, &bob),
         Ok(_)
     );
@@ -53,12 +50,12 @@ fn test2_create_voter_reinitialize() {
         &rpc_client,
         &initializer,
         &bob,
-        VotesStates::Full,
+        common::VotesStates::Full,
         solana_program::system_program::id(),
         solana_program::system_program::id(),
         solana_program::system_program::id(),
     );
-    assert_matches!(
+    common::assert_matches!(
         common::create_voter_transaction(&rpc_client, &initializer, &bob),
         Err(_)
     );
@@ -66,7 +63,7 @@ fn test2_create_voter_reinitialize() {
         &rpc_client,
         &initializer,
         &bob,
-        VotesStates::Full,
+        common::VotesStates::Full,
         solana_program::system_program::id(),
         solana_program::system_program::id(),
         solana_program::system_program::id(),

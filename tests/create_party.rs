@@ -1,19 +1,3 @@
-use core::time;
-use std::thread;
-
-use bpf_program_template::{
-    instruction::{get_owner_address, get_party_address, get_state_address},
-    state::JanecekState,
-};
-// #![cfg(feature = "test-sbf")]
-use solana_program::{
-    instruction::{AccountMeta, Instruction},
-    system_program,
-};
-use solana_sdk::{signer::Signer, transaction::Transaction};
-
-use assert_matches::*;
-
 mod common;
 /// basic test to try create party
 #[test]
@@ -26,11 +10,11 @@ fn test1_create_party_basic() {
     let (test_validator, _payer) = testvalgen.start();
     let rpc_client = test_validator.get_rpc_client();
 
-    assert_matches!(
+    common::assert_matches!(
         common::initialize_transaction(&rpc_client, &initializer),
         Ok(_)
     );
-    assert_matches!(
+    common::assert_matches!(
         common::create_party_transaction(&rpc_client, &initializer, &alice, party_name,),
         Ok(_)
     );
@@ -47,17 +31,17 @@ fn test2_create_party_reinitialize() {
     let (test_validator, _payer) = testvalgen.start();
     let rpc_client = test_validator.get_rpc_client();
 
-    assert_matches!(
+    common::assert_matches!(
         common::initialize_transaction(&rpc_client, &initializer),
         Ok(_)
     );
-    assert_matches!(
+    common::assert_matches!(
         common::create_party_transaction(&rpc_client, &initializer, &alice, party_name,),
         Ok(_)
     );
     common::compare_party_data(&rpc_client, &initializer, &alice, party_name, 0);
 
-    assert_matches!(
+    common::assert_matches!(
         common::create_party_transaction(&rpc_client, &initializer, &alice, party_name,),
         Err(_)
     );
@@ -77,11 +61,11 @@ fn test3_create_party_special_name() {
     let (test_validator, _payer) = testvalgen.start();
     let rpc_client = test_validator.get_rpc_client();
 
-    assert_matches!(
+    common::assert_matches!(
         common::initialize_transaction(&rpc_client, &initializer),
         Ok(_)
     );
-    assert_matches!(
+    common::assert_matches!(
         common::create_party_transaction(&rpc_client, &initializer, &alice, party_name,),
         Ok(_)
     );
@@ -102,11 +86,11 @@ fn test4_create_party_long_name() {
     let (test_validator, _payer) = testvalgen.start();
     let rpc_client = test_validator.get_rpc_client();
 
-    assert_matches!(
+    common::assert_matches!(
         common::initialize_transaction(&rpc_client, &initializer),
         Ok(_)
     );
-    assert_matches!(
+    common::assert_matches!(
         common::create_party_transaction(&rpc_client, &initializer, &alice, party_name,),
         Err(_)
     );
@@ -118,18 +102,20 @@ fn test5_create_party_spoofed_data() {
     let alice = common::add_account(&mut testvalgen);
 
     let party_name = String::from("Alice Party");
-    let mut name_bytearray: [u8; JanecekState::NAME_LENGTH] = [0u8; JanecekState::NAME_LENGTH];
+    let mut name_bytearray: [u8; common::JanecekState::NAME_LENGTH] =
+        [0u8; common::JanecekState::NAME_LENGTH];
     name_bytearray[..party_name.len()].copy_from_slice(party_name.into_bytes().as_slice());
 
     // derive PDA from normal name
-    let (owner, bump_owner) = get_owner_address(initializer.pubkey());
-    let (state, bump_state) = get_state_address(owner);
-    let (party, _bump_party) = get_party_address(&name_bytearray, state);
+    let (owner, bump_owner) =
+        common::get_owner_address(solana_sdk::signer::Signer::pubkey(&initializer));
+    let (state, bump_state) = common::get_state_address(owner);
+    let (party, _bump_party) = common::get_party_address(&name_bytearray, state);
 
     let (test_validator, _payer) = testvalgen.start();
     let rpc_client = test_validator.get_rpc_client();
 
-    assert_matches!(
+    common::assert_matches!(
         common::initialize_transaction(&rpc_client, &initializer),
         Ok(_)
     );
@@ -146,24 +132,27 @@ fn test5_create_party_spoofed_data() {
 
     let blockhash = rpc_client.get_latest_blockhash().unwrap();
 
-    let mut transaction = Transaction::new_with_payer(
-        &[Instruction {
+    let mut transaction = common::Transaction::new_with_payer(
+        &[common::Instruction {
             program_id: common::id(),
             accounts: vec![
-                AccountMeta::new(alice.pubkey(), true),
-                AccountMeta::new_readonly(initializer.pubkey(), true),
-                AccountMeta::new_readonly(owner, false),
-                AccountMeta::new_readonly(state, false),
-                AccountMeta::new(party, false),
-                AccountMeta::new_readonly(system_program::id(), false),
+                common::AccountMeta::new(solana_sdk::signer::Signer::pubkey(&alice), true),
+                common::AccountMeta::new_readonly(
+                    solana_sdk::signer::Signer::pubkey(&initializer),
+                    true,
+                ),
+                common::AccountMeta::new_readonly(owner, false),
+                common::AccountMeta::new_readonly(state, false),
+                common::AccountMeta::new(party, false),
+                common::AccountMeta::new_readonly(common::system_program::id(), false),
             ],
             data,
         }],
-        Some(&alice.pubkey()),
+        Some(&solana_sdk::signer::Signer::pubkey(&alice)),
     );
 
     transaction.sign(&[&alice, &initializer], blockhash);
-    assert_matches!(
+    common::assert_matches!(
         rpc_client.send_and_confirm_transaction(&transaction),
         Err(_)
     );
@@ -180,11 +169,11 @@ fn test6_create_party_api_panic() {
     let (test_validator, _payer) = testvalgen.start();
     let rpc_client = test_validator.get_rpc_client();
 
-    assert_matches!(
+    common::assert_matches!(
         common::initialize_transaction(&rpc_client, &initializer),
         Ok(_)
     );
-    assert_matches!(
+    common::assert_matches!(
         common::create_party_transaction(&rpc_client, &initializer, &alice, party_name),
         Ok(_)
     );
@@ -202,16 +191,16 @@ fn test7_create_party_after_deadline() {
     let (test_validator, _payer) = testvalgen.start();
     let rpc_client = test_validator.get_rpc_client();
 
-    assert_matches!(
+    common::assert_matches!(
         common::initialize_transaction(&rpc_client, &initializer),
         Ok(_)
     );
 
     // sleep 10 seconds
-    let ten_millis = time::Duration::from_millis(10000);
-    thread::sleep(ten_millis);
+    let ten_millis = common::time::Duration::from_millis(10000);
+    common::thread::sleep(ten_millis);
 
-    assert_matches!(
+    common::assert_matches!(
         common::create_party_transaction(&rpc_client, &initializer, &alice, party_name,),
         Err(_)
     );
@@ -228,7 +217,7 @@ fn test8_create_party_without_initialize() {
     let (test_validator, _payer) = testvalgen.start();
     let rpc_client = test_validator.get_rpc_client();
 
-    assert_matches!(
+    common::assert_matches!(
         common::create_party_transaction(&rpc_client, &initializer, &alice, party_name,),
         Err(_)
     );
@@ -249,16 +238,16 @@ fn test9_create_party_same_name() {
     let (test_validator, _payer) = testvalgen.start();
     let rpc_client = test_validator.get_rpc_client();
 
-    assert_matches!(
+    common::assert_matches!(
         common::initialize_transaction(&rpc_client, &initializer),
         Ok(_)
     );
-    assert_matches!(
+    common::assert_matches!(
         common::create_party_transaction(&rpc_client, &initializer, &alice, party_name_alice),
         Ok(_)
     );
     common::compare_party_data(&rpc_client, &initializer, &alice, party_name_alice, 0);
-    assert_matches!(
+    common::assert_matches!(
         common::create_party_transaction(&rpc_client, &initializer, &bob, party_name_bob),
         Err(_)
     );

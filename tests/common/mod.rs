@@ -1,18 +1,30 @@
-use borsh::BorshDeserialize;
-use bpf_program_template::{
+pub use assert_matches::*;
+pub use base64::{engine::general_purpose, Engine as _};
+pub use borsh::BorshDeserialize;
+pub use core::time;
+pub use std::thread;
+
+pub use solana_client::rpc_client::RpcClient;
+pub use solana_program::{
+    instruction::{AccountMeta, Instruction},
+    native_token::LAMPORTS_PER_SOL,
+    pubkey::Pubkey,
+    system_program,
+};
+pub use solana_sdk::{
+    account::AccountSharedData, declare_id, signature::Keypair, signer::Signer,
+    transaction::Transaction,
+};
+pub use solana_validator::test_validator::*;
+
+pub use janecek_method_using_raw_solana::{
     instruction::{
         create_party, create_voter, get_owner_address, get_party_address, get_state_address,
         get_voter_address, initialize, string_to_bytearray, vote_negative, vote_positive,
     },
     state::{JanecekState, VotesStates},
 };
-use solana_client::rpc_client::RpcClient;
-use solana_program::{native_token::LAMPORTS_PER_SOL, pubkey::Pubkey};
-use solana_sdk::{
-    account::AccountSharedData, declare_id, signature::Keypair, signature::Signer,
-    transaction::Transaction,
-};
-use solana_validator::test_validator::*;
+
 
 declare_id!("Fnambs3f1XXoMmAVc94bf8t6JDAxmVkXz85XU4v2edph");
 
@@ -145,9 +157,7 @@ pub fn add_account(testvalgen: &mut TestValidatorGenesis) -> Keypair {
 
 /// Deserialize Account Data
 #[allow(dead_code)]
-pub fn de_account_data(
-    account_data: &mut &[u8],
-) -> Option<bpf_program_template::state::JanecekState> {
+pub fn de_account_data(account_data: &mut &[u8]) -> Option<JanecekState> {
     match JanecekState::deserialize(account_data).unwrap() {
         JanecekState::VotingOwner {
             is_initialized,
@@ -246,7 +256,7 @@ pub fn compare_voting_state_data(rpc_client: &RpcClient, initializer: &Keypair) 
 
     assert_eq!(voting_state_acc.owner, id());
     match voting_state_data {
-        bpf_program_template::state::JanecekState::VotingState {
+        JanecekState::VotingState {
             is_initialized,
             voting_owner,
             voting_started,
@@ -285,7 +295,7 @@ pub fn compare_party_data(
     let party_data = de_account_data(&mut party_acc.data.as_slice()).unwrap();
 
     match party_data {
-        bpf_program_template::state::JanecekState::Party {
+        JanecekState::Party {
             is_initialized,
             author,
             voting_state,
