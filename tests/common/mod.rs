@@ -1,7 +1,9 @@
 pub use assert_matches::*;
 pub use base64::{engine::general_purpose, Engine as _};
 pub use borsh::BorshDeserialize;
+use borsh::BorshSerialize;
 pub use core::time;
+pub use std::i64::MAX;
 pub use std::thread;
 
 pub use solana_client::rpc_client::RpcClient;
@@ -25,7 +27,6 @@ pub use janecek_method_using_raw_solana::{
     state::{JanecekState, VotesStates},
 };
 
-
 declare_id!("Fnambs3f1XXoMmAVc94bf8t6JDAxmVkXz85XU4v2edph");
 
 /// initialize TestValidator
@@ -34,7 +35,7 @@ pub fn init_env() -> TestValidatorGenesis {
     // solana_logger::setup_with_default("solana_program_runtime=debug");
     // solana_logger::setup_with_default("solana_runtime::message=debug");
     let mut testvalgen = TestValidatorGenesis::default();
-    testvalgen.add_program("target/deploy/bpf_program_template", id());
+    testvalgen.add_program("target/deploy/janecek_method_using_raw_solana", id());
     testvalgen
 }
 
@@ -221,6 +222,10 @@ pub fn de_account_data(account_data: &mut &[u8]) -> Option<JanecekState> {
             bump,
         }),
     }
+}
+#[allow(dead_code)]
+pub fn se_account(account: JanecekState, mut buffer: &mut [u8]) {
+    account.serialize(&mut buffer).unwrap()
 }
 
 /// Check if Voting Owner data corresponds to what we expect
