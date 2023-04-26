@@ -32,7 +32,7 @@
 - Party in specified context can`t be created after voting in the context ended.
 
 ### ***Questions***
-- ❓ **Is there a way to nicely check what error was returned from rpc client during transaction ??**
+- ❗❓ **Is there a way to nicely check what error was returned from rpc client during transaction ??**❌
 - ❓ **not using string in instruction data, but bytearray good/bad = good ✅**
 - ❓ **deserialization on enum - what if i send instraction data too long, have test case for this = yep, check if all data deserialized✅**
 - ❓ **readability checks = no need to check this✅**
