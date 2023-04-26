@@ -202,7 +202,7 @@ fn test2_overflow_votes() {
     let mut testvalgen = common::init_env();
     let initializer = common::add_account(&mut testvalgen);
 
-    let alice = common::add_account(&mut testvalgen); // party owner 2
+    let alice = common::add_account(&mut testvalgen); // party owner 1
 
     let party_alice = "ラウトは難しいです！";
 
@@ -279,6 +279,124 @@ fn test2_overflow_votes() {
         common::VotesStates::Full,
         solana_program::system_program::id(),
         solana_program::system_program::id(),
+        solana_program::system_program::id(),
+    );
+}
+
+#[test]
+fn test3_underflow_votes() {
+    let mut testvalgen = common::init_env();
+    let initializer = common::add_account(&mut testvalgen);
+
+    let alice = common::add_account(&mut testvalgen); // party owner 1
+    let andrej = common::add_account(&mut testvalgen); // party owner 2
+    let jozef = common::add_account(&mut testvalgen); // party owner 3
+
+    let party_alice = "ラウトは難しいです！";
+    let party_andrej = "Andrejko Babis";
+    let party_jozef = "Ackee Blockchain";
+
+    let bob = common::add_account(&mut testvalgen); // this is voter
+
+    let (pda_owner, _owner_bump) =
+        common::get_owner_address(solana_sdk::signer::Signer::pubkey(&initializer));
+    let (pda_state, _state_bump) = common::get_state_address(pda_owner);
+
+    let name_bytearray = common::string_to_bytearray(String::from(party_andrej));
+    let (pda_party_andrej, _party_andrej_bump) =
+        common::get_party_address(&name_bytearray, pda_state);
+
+    let name_bytearray = common::string_to_bytearray(String::from(party_jozef));
+    let (pda_party_jozef, _party_jozef_bump) =
+        common::get_party_address(&name_bytearray, pda_state);
+
+    let name_bytearray = common::string_to_bytearray(String::from(party_alice));
+    let (pda_party_alice, _party_alice_bump) =
+        common::get_party_address(&name_bytearray, pda_state);
+
+    let mut buffer = [0; common::JanecekState::LEN_PARTY];
+    common::se_account(
+        common::JanecekState::Party {
+            is_initialized: true,
+            author: alice.pubkey(),
+            voting_state: pda_state,
+            created: 0,
+            name: name_bytearray,
+            votes: common::MIN,
+            bump: _party_alice_bump,
+        },
+        &mut buffer,
+    );
+
+    testvalgen.add_account_with_base64_data(
+        pda_party_alice,
+        common::LAMPORTS_PER_SOL * 2,
+        common::id(),
+        &base64::Engine::encode(&common::general_purpose::STANDARD, buffer)[..],
+    );
+
+    let (test_validator, _payer) = testvalgen.start();
+    let rpc_client = test_validator.get_rpc_client();
+
+    // initialize context
+    common::assert_matches!(
+        common::initialize_transaction(&rpc_client, &initializer),
+        Ok(_)
+    );
+    common::assert_matches!(
+        common::create_party_transaction(&rpc_client, &initializer, &andrej, party_andrej),
+        Ok(_)
+    );
+    common::assert_matches!(
+        common::create_party_transaction(&rpc_client, &initializer, &jozef, party_jozef),
+        Ok(_)
+    );
+    common::compare_voting_owner_data(&rpc_client, &initializer);
+    common::compare_voting_state_data(&rpc_client, &initializer);
+    common::compare_party_data(&rpc_client, &initializer, &andrej, party_andrej, 0);
+    common::compare_party_data(&rpc_client, &initializer, &jozef, party_jozef, 0);
+    common::compare_party_data(&rpc_client, &initializer, &alice, party_alice, common::MIN);
+
+    // create voter
+    common::assert_matches!(
+        common::create_voter_transaction(&rpc_client, &initializer, &bob),
+        Ok(_)
+    );
+    // compare voter data
+    common::compare_voter_data(
+        &rpc_client,
+        &initializer,
+        &bob,
+        common::VotesStates::Full,
+        solana_program::system_program::id(),
+        solana_program::system_program::id(),
+        solana_program::system_program::id(),
+    );
+    // vote positive for overflow
+    common::assert_matches!(
+        common::create_vote_pos_transaction(&rpc_client, &initializer, &bob, party_andrej),
+        Ok(_)
+    );
+    common::assert_matches!(
+        common::create_vote_pos_transaction(&rpc_client, &initializer, &bob, party_jozef),
+        Ok(_)
+    );
+    common::assert_matches!(
+        common::create_vote_neg_transaction(&rpc_client, &initializer, &bob, party_alice),
+        Err(_)
+    );
+
+    common::compare_party_data(&rpc_client, &initializer, &alice, party_alice, common::MIN);
+    common::compare_party_data(&rpc_client, &initializer, &andrej, party_andrej, 1);
+    common::compare_party_data(&rpc_client, &initializer, &jozef, party_jozef, 1);
+
+    common::compare_voter_data(
+        &rpc_client,
+        &initializer,
+        &bob,
+        common::VotesStates::NoMorePositiveVotes,
+        pda_party_andrej,
+        pda_party_jozef,
         solana_program::system_program::id(),
     );
 }

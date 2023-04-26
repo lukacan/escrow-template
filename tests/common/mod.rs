@@ -4,6 +4,7 @@ pub use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
 pub use core::time;
 pub use std::i64::MAX;
+pub use std::i64::MIN;
 pub use std::thread;
 
 pub use solana_client::rpc_client::RpcClient;
